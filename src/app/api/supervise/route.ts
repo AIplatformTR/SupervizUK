@@ -131,7 +131,10 @@ export async function POST(request: Request) {
       );
     }
 
-    const apiKey = process.env.GEMINI_API_KEY;
+    const apiKey =
+      process.env.GEMINI_API_KEY ||
+      process.env.SupervizUK ||
+      process.env.SUPERVIZUK;
     const language = body.language || "en";
 
     if (!apiKey) {
