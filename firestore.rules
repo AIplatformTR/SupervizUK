@@ -1,0 +1,391 @@
+rules_version = '2';
+
+// ===============================================================
+// Assumed Data Model — SupervizAI (Multi-Tenant UK Educational Psychology)
+// ===============================================================
+//
+// Collection: organisations/{orgId}
+// Document ID: orgId (string)
+// Fields:
+//   - name: string (required, 1..120 chars) - Organisation display name
+//   - type: string (required, 1..80 chars) - Organisation type (e.g. Local Authority, MAT, Practice)
+//   - accentColor: string (optional, empty or #RGB/#RRGGBB/#RRGGBBAA hex, <= 30 chars) - White-label accent color
+//   - logoText: string (optional, <= 40 chars) - Short white-label logo text/monogram
+//   - logoUrl: string (optional, empty or http(s) URL, <= 2048 chars) - White-label logo URL
+//   - reportFooter: string (optional, <= 500 chars) - Custom footer on exported reports
+//   - customPromptNote: string (optional, <= 2000 chars) - Local clinical supervision guidance note
+//   - dataRegion: string (optional, <= 60 chars) - Data residency region label (e.g. europe-west2)
+//   - createdBy: string (optional, 1..128 chars, immutable) - Founding user's auth UID (recommended for non-batched bootstrap)
+//   - createdAt: timestamp (required, immutable) - Creation timestamp
+//   - updatedAt: timestamp (required) - Last update timestamp
+//
+// Collection: organisations/{orgId}/members/{userId}
+// Document ID: userId (matches Firebase Auth UID)
+// Fields:
+//   - uid: string (required, must equal userId, 1..128 chars, immutable) - Member's Firebase Auth UID
+//   - email: string (required, valid email, 3..254 chars) - Member's work email
+//   - displayName: string (required, 1..120 chars) - Member's display name
+//   - role: string (required, enum: 'admin' | 'senior_ep' | 'psychologist') - RBAC role within org
+//   - joinedAt: timestamp (required, immutable) - Membership creation timestamp
+//
+// Collection: organisations/{orgId}/cases/{caseId}
+// Document ID: caseId (auto-generated or string)
+// Fields:
+//   - pupilAlias: string (required, 1..80 chars) - Anonymised pupil identifier (no real names)
+//   - yearGroup: string (required, 1..40 chars) - UK school year group
+//   - title: string (required, 1..200 chars) - Case title
+//   - summary: string (optional, <= 5000 chars) - Anonymised case summary
+//   - status: string (required, enum: 'in_analysis' | 'report_ready' | 'archived') - Case workflow status
+//   - createdBy: string (required, 1..128 chars, immutable) - Creator's Firebase Auth UID
+//   - createdByName: string (optional, 1..120 chars) - Creator's display name
+//   - attachments: list (optional, <= 25 items) - Anonymised case attachments metadata
+//   - messages: list (optional, <= 200 items) - Clinical supervision dialogue history
+//   - latestSupervision: map or null (optional, <= 30 keys if map) - Latest structured AI supervision output
+//   - createdAt: timestamp (required, immutable) - Creation timestamp
+//   - updatedAt: timestamp (required) - Last update timestamp
+//
+// Collection: organisations/{orgId}/reports/{reportId}
+// Document ID: reportId (auto-generated or string)
+// Fields:
+//   - caseId: string (required, 1..128 chars, immutable) - Source case document ID
+//   - pupilAlias: string (required, 1..80 chars) - Anonymised pupil alias
+//   - audience: string (required, enum: 'parent' | 'teacher' | 'supervision') - Target audience
+//   - title: string (required, 1..200 chars) - Report title
+//   - sections: list (optional, <= 30 items) - Structured plain-language report sections
+//   - plainSummary: string (optional, <= 10000 chars) - Plain-language executive summary
+//   - keyTakeaways: list (optional, <= 30 items) - Bullet takeaways
+//   - nextSteps: list (optional, <= 30 items) - Actionable next steps
+//   - createdBy: string (required, 1..128 chars, immutable) - Creator's Firebase Auth UID
+//   - createdAt: timestamp (required, immutable) - Creation timestamp
+//   - updatedAt: timestamp (required) - Last update timestamp
+//
+// Collection: organisations/{orgId}/auditLogs/{logId}
+// Document ID: logId (auto-generated or string)
+// Immutable UK GDPR compliance audit trail (append-only; updates and deletes strictly denied).
+// Fields:
+//   - actorUid: string (required, 1..128 chars, must match request.auth.uid) - Acting user's UID
+//   - actorName: string (required, 1..120 chars) - Acting user's display name
+//   - action: string (required, 1..100 chars) - Audit event action identifier
+//   - targetType: string (required, 1..60 chars) - Target resource type
+//   - targetId: string (required, 1..128 chars) - Target document ID
+//   - details: string (<= 2000 chars) or map (<= 20 keys) (optional) - Contextual event details
+//   - createdAt: timestamp (required) - Event timestamp
+//
+// ===============================================================
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ===============================================================
+    // Core Auth & Validation Helper Functions
+    // ===============================================================
+
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+
+    function hasRequiredFields(fields) {
+      return request.resource.data.keys().hasAll(fields);
+    }
+
+    function hasOnlyAllowedFields(fields) {
+      return request.resource.data.keys().hasOnly(fields);
+    }
+
+    function areImmutableFieldsUnchanged(fields) {
+      return !request.resource.data.diff(resource.data).affectedKeys().hasAny(fields);
+    }
+
+    function isValidString(val, minLen, maxLen) {
+      return val is string && val.size() >= minLen && val.size() <= maxLen;
+    }
+
+    function isValidOptionalString(data, field, minLen, maxLen) {
+      return !(field in data) || isValidString(data[field], minLen, maxLen);
+    }
+
+    function isValidUrl(url) {
+      return url is string &&
+        url.size() <= 2048 &&
+        (url.matches("^https://.*") || url.matches("^http://.*"));
+    }
+
+    function isValidOptionalUrl(data, field) {
+      return !(field in data) ||
+        (data[field] is string && (data[field].size() == 0 || isValidUrl(data[field])));
+    }
+
+    function isValidEmail(email) {
+      return email is string &&
+        email.size() >= 3 &&
+        email.size() <= 254 &&
+        email.matches("^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}$");
+    }
+
+    function isValidOptionalHexColor(data, field) {
+      return !(field in data) ||
+        (data[field] is string &&
+         data[field].size() <= 30 &&
+         (data[field].size() == 0 || data[field].matches("^#[0-9a-fA-F]{3,8}$")));
+    }
+
+    function isValidOptionalList(data, field, maxSize) {
+      return !(field in data) || (data[field] is list && data[field].size() <= maxSize);
+    }
+
+    function isValidOptionalNullableMap(data, field, maxKeys) {
+      return !(field in data) ||
+        data[field] == null ||
+        (data[field] is map && data[field].keys().size() <= maxKeys);
+    }
+
+    // ===============================================================
+    // Multi-Tenant Organisation RBAC Helpers
+    // ===============================================================
+
+    function orgPath(orgId) {
+      return /databases/$(database)/documents/organisations/$(orgId);
+    }
+
+    function memberPath(orgId, userId) {
+      return /databases/$(database)/documents/organisations/$(orgId)/members/$(userId);
+    }
+
+    function isOrgMember(orgId) {
+      return isAuthenticated() && exists(memberPath(orgId, request.auth.uid));
+    }
+
+    function orgMemberRole(orgId) {
+      return get(memberPath(orgId, request.auth.uid)).data.role;
+    }
+
+    function isOrgAdmin(orgId) {
+      return isOrgMember(orgId) && orgMemberRole(orgId) == 'admin';
+    }
+
+    function isOrgAdminOrSeniorEp(orgId) {
+      return isOrgMember(orgId) && orgMemberRole(orgId) in ['admin', 'senior_ep'];
+    }
+
+    // Prevents cross-tenant self-join attacks on existing organisations.
+    // Allows a user to create their own founding member document ONLY if:
+    //   1) The parent organisation is being created atomically in the same writeBatch, OR
+    //   2) The parent organisation already exists and records createdBy == request.auth.uid.
+    function isBootstrapOrgCreator(orgId) {
+      return (!exists(orgPath(orgId)) && existsAfter(orgPath(orgId))) ||
+        (exists(orgPath(orgId)) &&
+         ('createdBy' in get(orgPath(orgId)).data) &&
+         get(orgPath(orgId)).data.createdBy == request.auth.uid);
+    }
+
+    // ===============================================================
+    // Domain Validators (Called in BOTH create and update)
+    // ===============================================================
+
+    function isValidOrganisation(data) {
+      return hasOnlyAllowedFields([
+          'name', 'type', 'accentColor', 'logoText', 'logoUrl',
+          'reportFooter', 'customPromptNote', 'dataRegion',
+          'createdBy', 'createdAt', 'updatedAt'
+        ]) &&
+        hasRequiredFields(['name', 'type', 'createdAt', 'updatedAt']) &&
+        isValidString(data.name, 1, 120) &&
+        isValidString(data.type, 1, 80) &&
+        isValidOptionalHexColor(data, 'accentColor') &&
+        isValidOptionalString(data, 'logoText', 0, 40) &&
+        isValidOptionalUrl(data, 'logoUrl') &&
+        isValidOptionalString(data, 'reportFooter', 0, 500) &&
+        isValidOptionalString(data, 'customPromptNote', 0, 2000) &&
+        isValidOptionalString(data, 'dataRegion', 0, 60) &&
+        isValidOptionalString(data, 'createdBy', 1, 128) &&
+        data.createdAt is timestamp &&
+        data.updatedAt is timestamp;
+    }
+
+    function isValidMember(data, userId) {
+      return hasOnlyAllowedFields(['uid', 'email', 'displayName', 'role', 'joinedAt']) &&
+        hasRequiredFields(['uid', 'email', 'displayName', 'role', 'joinedAt']) &&
+        isValidString(data.uid, 1, 128) &&
+        data.uid == userId &&
+        isValidEmail(data.email) &&
+        isValidString(data.displayName, 1, 120) &&
+        data.role in ['admin', 'senior_ep', 'psychologist'] &&
+        data.joinedAt is timestamp;
+    }
+
+    function isValidCase(data) {
+      return hasOnlyAllowedFields([
+          'pupilAlias', 'yearGroup', 'title', 'summary', 'status',
+          'createdBy', 'createdByName', 'attachments', 'messages',
+          'latestSupervision', 'createdAt', 'updatedAt'
+        ]) &&
+        hasRequiredFields([
+          'pupilAlias', 'yearGroup', 'title', 'status',
+          'createdBy', 'createdAt', 'updatedAt'
+        ]) &&
+        isValidString(data.pupilAlias, 1, 80) &&
+        isValidString(data.yearGroup, 1, 40) &&
+        isValidString(data.title, 1, 200) &&
+        isValidOptionalString(data, 'summary', 0, 5000) &&
+        data.status in ['in_analysis', 'report_ready', 'archived'] &&
+        isValidString(data.createdBy, 1, 128) &&
+        isValidOptionalString(data, 'createdByName', 1, 120) &&
+        isValidOptionalList(data, 'attachments', 25) &&
+        isValidOptionalList(data, 'messages', 200) &&
+        isValidOptionalNullableMap(data, 'latestSupervision', 30) &&
+        data.createdAt is timestamp &&
+        data.updatedAt is timestamp;
+    }
+
+    function isValidReport(data) {
+      return hasOnlyAllowedFields([
+          'caseId', 'pupilAlias', 'audience', 'title', 'sections',
+          'plainSummary', 'keyTakeaways', 'nextSteps',
+          'createdBy', 'createdAt', 'updatedAt'
+        ]) &&
+        hasRequiredFields([
+          'caseId', 'pupilAlias', 'audience', 'title',
+          'createdBy', 'createdAt', 'updatedAt'
+        ]) &&
+        isValidString(data.caseId, 1, 128) &&
+        isValidString(data.pupilAlias, 1, 80) &&
+        data.audience in ['parent', 'teacher', 'supervision'] &&
+        isValidString(data.title, 1, 200) &&
+        isValidOptionalList(data, 'sections', 30) &&
+        isValidOptionalString(data, 'plainSummary', 0, 10000) &&
+        isValidOptionalList(data, 'keyTakeaways', 30) &&
+        isValidOptionalList(data, 'nextSteps', 30) &&
+        isValidString(data.createdBy, 1, 128) &&
+        data.createdAt is timestamp &&
+        data.updatedAt is timestamp;
+    }
+
+    function isValidAuditLog(data) {
+      return hasOnlyAllowedFields([
+          'actorUid', 'actorName', 'action', 'targetType',
+          'targetId', 'details', 'createdAt'
+        ]) &&
+        hasRequiredFields([
+          'actorUid', 'actorName', 'action', 'targetType',
+          'targetId', 'createdAt'
+        ]) &&
+        isValidString(data.actorUid, 1, 128) &&
+        isValidString(data.actorName, 1, 120) &&
+        isValidString(data.action, 1, 100) &&
+        isValidString(data.targetType, 1, 60) &&
+        isValidString(data.targetId, 1, 128) &&
+        (!('details' in data) ||
+         isValidString(data.details, 0, 2000) ||
+         (data.details is map && data.details.keys().size() <= 20)) &&
+        data.createdAt is timestamp;
+    }
+
+    // ===============================================================
+    // Collection Rules
+    // ===============================================================
+
+    match /organisations/{orgId} {
+      // Any authenticated member of the organisation can read org profile & white-label settings.
+      allow read: if isOrgMember(orgId);
+
+      // Authenticated users can create a new organisation during onboarding.
+      allow create: if isAuthenticated() &&
+        isValidOrganisation(request.resource.data) &&
+        (!('createdBy' in request.resource.data) ||
+         request.resource.data.createdBy == request.auth.uid);
+
+      // Only org admins or senior EPs can update organisation settings; createdAt/createdBy are immutable.
+      allow update: if isOrgAdminOrSeniorEp(orgId) &&
+        isValidOrganisation(request.resource.data) &&
+        areImmutableFieldsUnchanged(['createdAt', 'createdBy']);
+
+      // Organisation deletion is disabled from client SDKs.
+      allow delete: if false;
+
+      // -------------------------------------------------------------
+      // Organisation Members (RBAC & Team Directory)
+      // -------------------------------------------------------------
+      match /members/{userId} {
+        // Any member of the org, or the user themselves, can read the member record.
+        allow read: if isOwner(userId) || isOrgMember(orgId);
+
+        // Existing org admin can add members; founding user can create their own member doc during org bootstrap.
+        allow create: if isAuthenticated() &&
+          isValidMember(request.resource.data, userId) &&
+          (isOrgAdmin(orgId) || (isOwner(userId) && isBootstrapOrgCreator(orgId)));
+
+        // Only existing org admins can update member records (e.g. role changes); uid & joinedAt are immutable.
+        allow update: if isOrgAdmin(orgId) &&
+          isValidMember(request.resource.data, userId) &&
+          areImmutableFieldsUnchanged(['uid', 'joinedAt']);
+
+        // Only existing org admins can remove members.
+        allow delete: if isOrgAdmin(orgId);
+      }
+
+      // -------------------------------------------------------------
+      // Confidential Pupil Cases (Anonymised)
+      // -------------------------------------------------------------
+      match /cases/{caseId} {
+        allow read: if isOrgMember(orgId);
+
+        allow create: if isOrgMember(orgId) &&
+          isValidCase(request.resource.data) &&
+          request.resource.data.createdBy == request.auth.uid;
+
+        allow update: if isOrgMember(orgId) &&
+          (resource.data.createdBy == request.auth.uid || isOrgAdminOrSeniorEp(orgId)) &&
+          isValidCase(request.resource.data) &&
+          areImmutableFieldsUnchanged(['createdBy', 'createdAt']);
+
+        allow delete: if isOrgMember(orgId) &&
+          (resource.data.createdBy == request.auth.uid || isOrgAdmin(orgId));
+      }
+
+      // -------------------------------------------------------------
+      // Plain-Language Portfolios & Reports
+      // -------------------------------------------------------------
+      match /reports/{reportId} {
+        allow read: if isOrgMember(orgId);
+
+        allow create: if isOrgMember(orgId) &&
+          isValidReport(request.resource.data) &&
+          request.resource.data.createdBy == request.auth.uid;
+
+        allow update: if isOrgMember(orgId) &&
+          (resource.data.createdBy == request.auth.uid || isOrgAdminOrSeniorEp(orgId)) &&
+          isValidReport(request.resource.data) &&
+          areImmutableFieldsUnchanged(['createdBy', 'createdAt', 'caseId']);
+
+        allow delete: if isOrgMember(orgId) &&
+          (resource.data.createdBy == request.auth.uid || isOrgAdmin(orgId));
+      }
+
+      // -------------------------------------------------------------
+      // Immutable UK GDPR Compliance Audit Logs
+      // -------------------------------------------------------------
+      match /auditLogs/{logId} {
+        allow read: if isOrgMember(orgId);
+
+        allow create: if isOrgMember(orgId) &&
+          isValidAuditLog(request.resource.data) &&
+          request.resource.data.actorUid == request.auth.uid;
+
+        // Audit logs are strictly append-only.
+        allow update: if false;
+        allow delete: if false;
+      }
+    }
+
+    // ===============================================================
+    // Default Deny — All Unmatched Paths
+    // ===============================================================
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}
