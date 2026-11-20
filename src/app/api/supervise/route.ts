@@ -204,21 +204,54 @@ export async function POST(request: Request) {
       .filter(Boolean)
       .join("\n\n");
 
-    const response = await ai.models.generateContent({
-      model: process.env.GEMINI_MODEL || "gemini-3.8-flash",
-      contents: [
-        {
-          role: "user",
-          parts: [{ text: promptParts }, ...multimodalParts],
-        },
-      ],
-      config: {
-        systemInstruction,
-        temperature: 0.4,
-      },
-    });
+    const candidateModels = Array.from(
+      new Set(
+        [
+          process.env.GEMINI_MODEL,
+          "gemini-3.6-flash",
+          "gemini-3.5-flash",
+          "gemini-3.5-flash-lite",
+          "gemini-3.8-flash",
+        ].filter((m): m is string => Boolean(m))
+      )
+    );
 
-    const rawText = response.text || "";
+    let rawText = "";
+    let lastErr: unknown = null;
+
+    for (const modelName of candidateModels) {
+      try {
+        const response = await ai.models.generateContent({
+          model: modelName,
+          contents: [
+            {
+              role: "user",
+              parts: [{ text: promptParts }, ...multimodalParts],
+            },
+          ],
+          config: {
+            systemInstruction,
+            temperature: 0.4,
+          },
+        });
+        if (response.text) {
+          rawText = response.text;
+          break;
+        }
+      } catch (err) {
+        lastErr = err;
+        console.warn(`Supervise model ${modelName} failed, trying next:`, err);
+      }
+    }
+
+    if (!rawText) {
+      console.warn("All Gemini models failed, returning fallback supervision:", lastErr);
+      const fallback = buildFallbackSupervision(body);
+      return NextResponse.json({
+        mode: "live-fallback",
+        supervision: fallback,
+      });
+    }
     const parsed = parseJsonResponse(rawText);
 
     if (!parsed || !parsed.step1Questions) {

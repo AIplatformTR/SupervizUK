@@ -220,16 +220,39 @@ Completed 4-Step Supervision Analysis:
 - Step 4 Recommendations: ${body.supervision.step4Recommendations}
 - Referrals: ${body.supervision.referralsNeeded.join(", ") || "None specified"}`;
 
-    const response = await ai.models.generateContent({
-      model: process.env.GEMINI_MODEL || "gemini-3.8-flash",
-      contents: [{ role: "user", parts: [{ text: userPrompt }] }],
-      config: {
-        systemInstruction,
-        temperature: 0.35,
-      },
-    });
+    const candidateModels = Array.from(
+      new Set(
+        [
+          process.env.GEMINI_MODEL,
+          "gemini-3.6-flash",
+          "gemini-3.5-flash",
+          "gemini-3.5-flash-lite",
+          "gemini-3.8-flash",
+        ].filter((m): m is string => Boolean(m))
+      )
+    );
 
-    const parsed = parseJson(response.text || "");
+    let rawText = "";
+    for (const modelName of candidateModels) {
+      try {
+        const response = await ai.models.generateContent({
+          model: modelName,
+          contents: [{ role: "user", parts: [{ text: userPrompt }] }],
+          config: {
+            systemInstruction,
+            temperature: 0.35,
+          },
+        });
+        if (response.text) {
+          rawText = response.text;
+          break;
+        }
+      } catch (err) {
+        console.warn(`Report model ${modelName} failed, trying next:`, err);
+      }
+    }
+
+    const parsed = rawText ? parseJson(rawText) : null;
     if (!parsed || !parsed.plainSummary) {
       return NextResponse.json({
         mode: "live-fallback",

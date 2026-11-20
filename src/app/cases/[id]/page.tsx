@@ -51,6 +51,51 @@ function readFile(file: File, as: "dataUrl" | "text"): Promise<string> {
   });
 }
 
+/**
+ * Resize large raster images (photos/scans of drawings) to max 1280px JPEG
+ * so uploads stay well within Vercel's 4.5 MB serverless payload limit.
+ */
+async function prepareImageDataUrl(
+  file: File
+): Promise<{ dataUrl: string; mimeType: string }> {
+  const rawDataUrl = await readFile(file, "dataUrl");
+  if (file.type === "image/svg+xml" || file.size < 250 * 1024) {
+    return { dataUrl: rawDataUrl, mimeType: file.type || "image/png" };
+  }
+  return new Promise((resolve) => {
+    const img = new window.Image();
+    img.onload = () => {
+      const maxDim = 1280;
+      let { width, height } = img;
+      if (width > maxDim || height > maxDim) {
+        if (width >= height) {
+          height = Math.round((height * maxDim) / width);
+          width = maxDim;
+        } else {
+          width = Math.round((width * maxDim) / height);
+          height = maxDim;
+        }
+      }
+      const canvas = document.createElement("canvas");
+      canvas.width = width;
+      canvas.height = height;
+      const ctx = canvas.getContext("2d");
+      if (!ctx) {
+        resolve({ dataUrl: rawDataUrl, mimeType: file.type || "image/jpeg" });
+        return;
+      }
+      ctx.fillStyle = "#FFFFFF";
+      ctx.fillRect(0, 0, width, height);
+      ctx.drawImage(img, 0, 0, width, height);
+      const compressed = canvas.toDataURL("image/jpeg", 0.84);
+      resolve({ dataUrl: compressed, mimeType: "image/jpeg" });
+    };
+    img.onerror = () =>
+      resolve({ dataUrl: rawDataUrl, mimeType: file.type || "image/jpeg" });
+    img.src = rawDataUrl;
+  });
+}
+
 function formatSize(bytes: number) {
   if (bytes < 1024) return `${bytes} B`;
   if (bytes < 1024 * 1024) return `${Math.round(bytes / 1024)} KB`;
@@ -161,11 +206,19 @@ export default function CaseWorkspacePage() {
     const added: CaseAttachment[] = [];
     for (const file of Array.from(files)) {
       const kind = detectFileKind(file);
-      const dataUrl = await readFile(file, "dataUrl");
+      let dataUrl = "";
+      let mimeType = file.type || "application/octet-stream";
+      if (kind === "image") {
+        const prepared = await prepareImageDataUrl(file);
+        dataUrl = prepared.dataUrl;
+        mimeType = prepared.mimeType;
+      } else {
+        dataUrl = await readFile(file, "dataUrl");
+      }
       let att: CaseAttachment = {
         id: `att-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
         name: file.name,
-        mimeType: file.type || "application/octet-stream",
+        mimeType,
         size: file.size,
         kind,
         textContent: kind === "text" ? await readFile(file, "text") : undefined,
@@ -219,7 +272,11 @@ export default function CaseWorkspacePage() {
             mimeType: a.mimeType,
             kind: a.kind,
             textContent: a.textContent,
-            base64Data: a.base64Data,
+            base64Data:
+              a.base64Data ||
+              (a.previewUrl?.startsWith("data:") && a.previewUrl.includes(",")
+                ? a.previewUrl.split(",")[1]
+                : undefined),
           })),
           language,
           customOrgNote: activeOrg.customPromptNote,
