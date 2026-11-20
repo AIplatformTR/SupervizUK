@@ -1,20 +1,251 @@
 @import "tailwindcss";
 
+/* ------------------------------------------------------------------
+   Superviz design tokens
+   Warm paper, ink-black type, one organisational accent colour.
+   Everything else is hairline rules and typography.
+------------------------------------------------------------------- */
 :root {
-  --background: #f8fafc;
-  --foreground: #0f172a;
-  --org-accent: #1e3a8a;
+  --paper: #f4f1ea;
+  --surface: #fbfaf6;
+  --sheet: #ffffff;
+  --ink: #1a1915;
+  --ink-2: #46433c;
+  --ink-3: #767065;
+  --rule: #e2dccf;
+  --rule-strong: #cbc3b2;
+
+  --ochre: #9a6212;
+  --ochre-bg: #f5ead6;
+  --moss: #3d6337;
+  --moss-bg: #e5ecdf;
+  --brick: #993a29;
+  --brick-bg: #f6e3dd;
+
+  --org-accent: #1f4d3a;
 }
 
 @theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  --color-paper: var(--paper);
+  --color-surface: var(--surface);
+  --color-sheet: var(--sheet);
+  --color-ink: var(--ink);
+  --color-ink-2: var(--ink-2);
+  --color-ink-3: var(--ink-3);
+  --color-rule: var(--rule);
+  --color-rule-strong: var(--rule-strong);
+  --color-ochre: var(--ochre);
+  --color-ochre-bg: var(--ochre-bg);
+  --color-moss: var(--moss);
+  --color-moss-bg: var(--moss-bg);
+  --color-brick: var(--brick);
+  --color-brick-bg: var(--brick-bg);
+  --color-accent: var(--org-accent);
+
+  --font-serif: "Newsreader Variable", "Iowan Old Style", Georgia, serif;
+  --font-sans: "IBM Plex Sans", ui-sans-serif, system-ui, -apple-system,
+    "Segoe UI", sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, "SFMono-Regular", Menlo,
+    monospace;
+}
+
+html {
+  -webkit-text-size-adjust: 100%;
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: var(--font-geist-sans), -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  background: var(--paper);
+  color: var(--ink);
+  font-family: var(--font-sans);
+  font-size: 15px;
+  line-height: 1.55;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  font-feature-settings: "ss01", "ss02";
+}
+
+::selection {
+  background: color-mix(in srgb, var(--org-accent) 18%, transparent);
+}
+
+h1,
+h2,
+h3 {
+  text-wrap: balance;
+}
+
+p {
+  text-wrap: pretty;
+}
+
+/* ---------- Small reusable primitives ----------
+   Kept in the components layer so Tailwind utilities (h-8, px-5, text-[28px]…)
+   can still override them where needed. */
+@layer components {
+.eyebrow {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+}
+
+.display {
+  font-family: var(--font-serif);
+  font-weight: 400;
+  letter-spacing: -0.015em;
+  line-height: 1.08;
+  font-optical-sizing: auto;
+}
+
+.field {
+  width: 100%;
+  background: var(--sheet);
+  border: 1px solid var(--rule-strong);
+  border-radius: 4px;
+  padding: 0.55rem 0.75rem;
+  font-size: 14px;
+  color: var(--ink);
+  transition: border-color 120ms ease, box-shadow 120ms ease;
+}
+.field::placeholder {
+  color: var(--ink-3);
+}
+.field:focus {
+  outline: none;
+  border-color: var(--ink);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--org-accent) 14%, transparent);
+}
+
+/* Borderless inline-editable text used in the report sheet */
+.inline-edit {
+  width: 100%;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 3px;
+  padding: 2px 4px;
+  margin: -2px -4px;
+  color: inherit;
+  font: inherit;
+  resize: none;
+  transition: background 120ms ease, border-color 120ms ease;
+}
+.inline-edit:hover {
+  background: color-mix(in srgb, var(--org-accent) 4%, transparent);
+}
+.inline-edit:focus {
+  outline: none;
+  background: var(--surface);
+  border-color: var(--rule-strong);
+}
+textarea.inline-edit {
+  display: block;
+  overflow: hidden;
+}
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  height: 2.25rem;
+  padding: 0 0.95rem;
+  border-radius: 4px;
+  font-size: 14px;
+  font-weight: 500;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: background 120ms ease, color 120ms ease, border-color 120ms ease,
+    opacity 120ms ease;
+}
+.btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+.btn-primary {
+  background: var(--ink);
+  color: var(--paper);
+}
+.btn-primary:hover:not(:disabled) {
+  background: #000;
+}
+.btn-accent {
+  background: var(--org-accent);
+  color: #fff;
+}
+.btn-accent:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--org-accent) 86%, #000);
+}
+.btn-outline {
+  background: transparent;
+  color: var(--ink);
+  border: 1px solid var(--rule-strong);
+}
+.btn-outline:hover:not(:disabled) {
+  border-color: var(--ink);
+}
+.btn-ghost {
+  background: transparent;
+  color: var(--ink-2);
+  padding: 0 0.6rem;
+}
+.btn-ghost:hover:not(:disabled) {
+  color: var(--ink);
+  background: color-mix(in srgb, var(--ink) 5%, transparent);
+}
+
+.link {
+  color: var(--ink);
+  text-decoration: underline;
+  text-decoration-color: var(--rule-strong);
+  text-underline-offset: 3px;
+  transition: text-decoration-color 120ms ease;
+}
+.link:hover {
+  text-decoration-color: var(--ink);
+}
+
+/* Subtle paper sheet used for report previews */
+.sheet {
+  background: var(--sheet);
+  border: 1px solid var(--rule);
+  box-shadow: 0 1px 0 rgba(26, 25, 21, 0.03),
+    0 12px 32px -18px rgba(26, 25, 21, 0.18);
+}
+
+/* Loading shimmer for skeleton lines */
+@keyframes shimmer {
+  0% {
+    background-position: -400px 0;
+  }
+  100% {
+    background-position: 400px 0;
+  }
+}
+.skeleton {
+  border-radius: 2px;
+  background: linear-gradient(
+    90deg,
+    var(--rule) 0px,
+    color-mix(in srgb, var(--rule) 40%, var(--surface)) 80px,
+    var(--rule) 160px
+  );
+  background-size: 800px 100%;
+  animation: shimmer 1.4s linear infinite;
+}
+}
+
+/* Native select reset for minimal selects */
+.select-plain {
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  appearance: none;
+  background-image: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .skeleton {
+    animation: none;
+  }
 }

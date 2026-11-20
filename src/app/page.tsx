@@ -3,263 +3,310 @@
 import React from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import {
-  Brain,
-  FileText,
-  ShieldCheck,
-  Sparkles,
-  ArrowRight,
-  Lock,
-  Building2,
-  Image as ImageIcon,
-  Mic,
-  CheckCircle2,
-} from "lucide-react";
+import { ArrowRight, ArrowUpRight } from "lucide-react";
 import { useApp } from "@/components/AppProvider";
+import { Logo } from "@/components/Logo";
+
+const STEPS = [
+  {
+    n: "01",
+    title: "Questions worth asking",
+    body: "Five questions drawn from your notes and any attached material — the things a good supervisor would want to understand before offering a view.",
+  },
+  {
+    n: "02",
+    title: "What you are doing well",
+    body: "An honest account of the professional judgement already visible in the case, and acknowledgement of how the work is landing on you.",
+  },
+  {
+    n: "03",
+    title: "A working hypothesis",
+    body: "A formulation of what may be driving the pupil's difficulties — and, where relevant, what is making the case feel stuck for you.",
+  },
+  {
+    n: "04",
+    title: "Next steps and referrals",
+    body: "Concrete options for you, the pupil and the family, with a clear note when SENCO, CAMHS, SaLT, OT or the DSL should be involved.",
+  },
+];
 
 export default function LandingPage() {
   const router = useRouter();
   const { signInDemo } = useApp();
 
-  const handleLaunchDemo = () => {
+  const openDemo = () => {
     signInDemo();
     router.push("/dashboard");
   };
 
   return (
-    <div className="min-h-screen flex flex-col bg-slate-50 text-slate-900">
-      {/* Header */}
-      <header className="bg-white/90 backdrop-blur border-b border-slate-200 sticky top-0 z-20">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 h-16 flex items-center justify-between">
-          <div className="flex items-center gap-2.5">
-            <div className="w-9 h-9 rounded-lg bg-indigo-900 flex items-center justify-center text-white shadow-sm">
-              <Brain className="w-5 h-5" />
-            </div>
-            <div>
-              <span className="font-bold text-lg tracking-tight text-slate-900">
-                SupervizAI
-              </span>
-              <span className="ml-2 text-xs font-semibold px-2 py-0.5 rounded-full bg-indigo-50 text-indigo-800 border border-indigo-100">
-                UK Education
-              </span>
-            </div>
-          </div>
-
-          <div className="flex items-center gap-3">
-            <Link
-              href="/login"
-              className="px-4 py-2 text-sm font-medium text-slate-700 hover:text-slate-900 transition-colors"
-            >
+    <div className="min-h-screen flex flex-col">
+      {/* Masthead */}
+      <header className="border-b border-rule">
+        <div className="max-w-[1180px] mx-auto px-5 sm:px-8 h-[64px] flex items-center justify-between">
+          <Logo />
+          <nav className="flex items-center gap-2 sm:gap-6 text-[14px]">
+            <a href="#how" className="hidden md:inline text-ink-2 hover:text-ink">
+              How it works
+            </a>
+            <a href="#reports" className="hidden md:inline text-ink-2 hover:text-ink">
+              Reports
+            </a>
+            <a href="#privacy" className="hidden md:inline text-ink-2 hover:text-ink">
+              Data protection
+            </a>
+            <Link href="/login" className="btn btn-ghost">
               Sign in
             </Link>
-            <button
-              type="button"
-              onClick={handleLaunchDemo}
-              className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-indigo-900 text-white text-sm font-semibold hover:bg-indigo-800 transition-colors shadow-sm cursor-pointer"
-            >
-              Launch Live Demo
-              <ArrowRight className="w-4 h-4" />
+            <button type="button" onClick={openDemo} className="btn btn-primary">
+              Open the demo
             </button>
-          </div>
+          </nav>
         </div>
       </header>
 
       {/* Hero */}
-      <section className="relative overflow-hidden pt-16 pb-20 px-4 sm:px-6">
-        <div className="max-w-5xl mx-auto text-center">
-          <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs font-semibold mb-6">
-            <ShieldCheck className="w-4 h-4" />
-            Built for UK School & Educational Psychologists • UK GDPR Ready
-          </div>
-
-          <h1 className="text-4xl sm:text-5xl lg:text-6xl font-bold tracking-tight text-slate-900 leading-[1.1] mb-6">
-            Reflective AI supervision &{" "}
-            <span className="text-indigo-900">plain-language portfolios</span>{" "}
-            for pupil cases
+      <section className="max-w-[1180px] w-full mx-auto px-5 sm:px-8 pt-16 sm:pt-24 pb-20 grid lg:grid-cols-12 gap-12 lg:gap-10 items-start">
+        <div className="lg:col-span-6 lg:pt-6">
+          <p className="eyebrow mb-6">For educational psychologists in UK schools</p>
+          <h1 className="display text-[44px] sm:text-[58px] lg:text-[64px] text-ink">
+            A second pair of eyes on{" "}
+            <em className="text-accent">every&nbsp;case</em>.
           </h1>
-
-          <p className="text-lg sm:text-xl text-slate-600 max-w-3xl mx-auto leading-relaxed mb-10">
-            Analyse pupil cases across notes, PDFs, projective drawings, and
-            audio recordings in a structured 4-step supervision framework—then
-            turn insights into clear, jargon-free reports stored confidentially
-            for your school, MAT, or Local Authority.
+          <p className="mt-7 text-[17px] leading-[1.65] text-ink-2 max-w-[520px]">
+            Bring a pupil case — your notes, a teacher&apos;s observations, a
+            drawing, a recorded reflection — and work through it in four
+            structured steps. Then turn what you&apos;ve concluded into a report
+            parents and teachers can actually read.
           </p>
 
-          <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
-            <button
-              type="button"
-              onClick={handleLaunchDemo}
-              className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-7 py-3.5 rounded-xl bg-indigo-900 text-white font-semibold text-base hover:bg-indigo-800 transition-colors shadow-md cursor-pointer"
-            >
-              <Sparkles className="w-5 h-5" />
-              Explore Interactive UK Demo
-              <ArrowRight className="w-5 h-5" />
+          <div className="mt-10 flex flex-wrap items-center gap-3">
+            <button type="button" onClick={openDemo} className="btn btn-accent h-11 px-5 text-[15px]">
+              Walk through a sample case
+              <ArrowRight className="w-4 h-4" strokeWidth={1.8} />
             </button>
-            <Link
-              href="/login"
-              className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-7 py-3.5 rounded-xl bg-white text-slate-800 font-semibold text-base border border-slate-300 hover:bg-slate-50 transition-colors"
-            >
-              <Lock className="w-4 h-4 text-slate-500" />
-              Organisation Sign In
+            <Link href="/login" className="btn btn-outline h-11 px-5 text-[15px]">
+              Sign in to your organisation
             </Link>
           </div>
+
+          <dl className="mt-14 grid grid-cols-3 max-w-[520px] border-t border-rule">
+            {[
+              ["4", "step supervision framework"],
+              ["3", "report formats per case"],
+              ["UK", "hosted, per-organisation storage"],
+            ].map(([k, v]) => (
+              <div key={v} className="pt-4 pr-4">
+                <dt className="font-serif text-[28px] leading-none text-ink">{k}</dt>
+                <dd className="mt-2 text-[12.5px] leading-snug text-ink-3">{v}</dd>
+              </div>
+            ))}
+          </dl>
+        </div>
+
+        {/* Product preview: an actual supervision note, not an illustration */}
+        <div className="lg:col-span-6">
+          <div className="sheet rounded-[4px] relative">
+            <div className="flex items-center justify-between px-6 py-3.5 border-b border-rule">
+              <span className="font-mono text-[11px] text-ink-3">
+                PUPIL A · YEAR 5 · SUPERVISION NOTE
+              </span>
+              <span className="inline-flex items-center gap-1.5 text-[11.5px] text-moss">
+                <span className="w-1.5 h-1.5 rounded-full bg-moss" />
+                Saved
+              </span>
+            </div>
+
+            <div className="px-6 sm:px-8 py-7 space-y-7">
+              <div className="grid grid-cols-[38px_1fr] gap-x-3">
+                <span className="font-serif text-[22px] leading-none text-ink-3">01</span>
+                <div>
+                  <h3 className="font-serif text-[19px] leading-tight mb-2.5">
+                    Questions worth asking
+                  </h3>
+                  <ol className="space-y-2 text-[14px] text-ink-2 leading-relaxed list-none">
+                    <li>
+                      — When you reflect the drawing back without interpreting
+                      it, what does Pupil A say about the fence?
+                    </li>
+                    <li>
+                      — What happens in the five minutes before whole-class
+                      reading?
+                    </li>
+                    <li className="text-ink-3">— …three more</li>
+                  </ol>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-[38px_1fr] gap-x-3">
+                <span className="font-serif text-[22px] leading-none text-ink-3">02</span>
+                <div>
+                  <h3 className="font-serif text-[19px] leading-tight mb-2.5">
+                    What you are doing well
+                  </h3>
+                  <p className="text-[14px] text-ink-2 leading-relaxed">
+                    You noticed the silence was a boundary and changed approach
+                    rather than pushing for disclosure. Feeling deskilled when a
+                    child stops talking is common — bringing it here is good
+                    practice.
+                  </p>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-[38px_1fr] gap-x-3 opacity-60">
+                <span className="font-serif text-[22px] leading-none text-ink-3">03</span>
+                <div className="space-y-2 pt-1">
+                  <div className="h-2 rounded-[1px] bg-rule w-[85%]" />
+                  <div className="h-2 rounded-[1px] bg-rule w-[70%]" />
+                </div>
+              </div>
+            </div>
+
+            {/* marginal note */}
+            <div className="hidden sm:block absolute right-5 lg:-right-6 -bottom-12 w-[230px] bg-ochre-bg border border-[#e8d6b4] px-4 py-3 rotate-[1.5deg] shadow-[0_8px_20px_-12px_rgba(26,25,21,0.35)]">
+              <p className="eyebrow !text-ochre mb-1">On the drawing</p>
+              <p className="text-[12.5px] leading-snug text-[#5b3d0c]">
+                Small self-figure, far left, behind a heavy fence. Dense
+                shading over the school; a sun kept in the far corner.
+              </p>
+            </div>
+          </div>
         </div>
       </section>
 
-      {/* 3 Core Capabilities */}
-      <section className="py-16 px-4 sm:px-6 bg-white border-y border-slate-200">
-        <div className="max-w-6xl mx-auto">
-          <div className="text-center max-w-2xl mx-auto mb-12">
-            <h2 className="text-2xl sm:text-3xl font-bold text-slate-900 mb-3">
-              Three core pillars designed for educational psychology practice
+      {/* How it works */}
+      <section id="how" className="border-t border-rule bg-surface">
+        <div className="max-w-[1180px] mx-auto px-5 sm:px-8 py-20 grid lg:grid-cols-12 gap-10">
+          <div className="lg:col-span-4">
+            <p className="eyebrow mb-4">How a session runs</p>
+            <h2 className="display text-[34px] sm:text-[40px]">
+              The structure of good supervision, every time.
             </h2>
-            <p className="text-slate-600">
-              Every step respects clinical sensitivity, pupil confidentiality,
-              and clear communication with families and school teams.
+            <p className="mt-5 text-[15px] text-ink-2 leading-relaxed max-w-[360px]">
+              Attach whatever you have. Typed notes and PDFs are read in full;
+              drawings are considered for their central element, composition,
+              colour, symbolism and line pressure; audio is transcribed first.
             </p>
           </div>
 
-          <div className="grid md:grid-cols-3 gap-6">
-            {/* Pillar 1 */}
-            <div className="rounded-2xl border border-slate-200 p-6 bg-slate-50/60 flex flex-col">
-              <div className="w-11 h-11 rounded-xl bg-indigo-100 text-indigo-900 flex items-center justify-center mb-4">
-                <Brain className="w-6 h-6" />
-              </div>
-              <h3 className="text-lg font-bold text-slate-900 mb-2">
-                1. 4-Step Multimodal Case Analysis
-              </h3>
-              <p className="text-sm text-slate-600 leading-relaxed mb-4 flex-1">
-                Upload case notes, PDFs, pupil drawings (analysed for central
-                elements, symbolism, colour, composition & shading), or audio
-                notes. Receive structured supervision:
-              </p>
-              <ul className="space-y-1.5 text-xs text-slate-700 font-medium">
-                <li className="flex items-center gap-2">
-                  <CheckCircle2 className="w-4 h-4 text-indigo-700 shrink-0" />
-                  5 reflective case questions
-                </li>
-                <li className="flex items-center gap-2">
-                  <CheckCircle2 className="w-4 h-4 text-indigo-700 shrink-0" />
-                  Practitioner strengths & emotional support
-                </li>
-                <li className="flex items-center gap-2">
-                  <CheckCircle2 className="w-4 h-4 text-indigo-700 shrink-0" />
-                  Clinical hypotheses & difficulty exploration
-                </li>
-                <li className="flex items-center gap-2">
-                  <CheckCircle2 className="w-4 h-4 text-indigo-700 shrink-0" />
-                  Practical actions & specialist referrals
-                </li>
-              </ul>
-            </div>
+          <ol className="lg:col-span-8 grid sm:grid-cols-2 border-t border-l border-rule">
+            {STEPS.map((s) => (
+              <li key={s.n} className="border-r border-b border-rule p-7 bg-paper/40">
+                <span className="font-mono text-[12px] text-ink-3">{s.n}</span>
+                <h3 className="font-serif text-[22px] leading-tight mt-3 mb-3">
+                  {s.title}
+                </h3>
+                <p className="text-[14.5px] text-ink-2 leading-relaxed">{s.body}</p>
+              </li>
+            ))}
+          </ol>
+        </div>
+      </section>
 
-            {/* Pillar 2 */}
-            <div className="rounded-2xl border border-slate-200 p-6 bg-slate-50/60 flex flex-col">
-              <div className="w-11 h-11 rounded-xl bg-emerald-100 text-emerald-800 flex items-center justify-center mb-4">
-                <FileText className="w-6 h-6" />
-              </div>
-              <h3 className="text-lg font-bold text-slate-900 mb-2">
-                2. Plain-Language Portfolios & Reports
-              </h3>
-              <p className="text-sm text-slate-600 leading-relaxed mb-4 flex-1">
-                Transform completed supervision sessions into clear, editable
-                portfolios written in accessible language—highlighting the main
-                takeaways without clinical jargon.
-              </p>
-              <ul className="space-y-1.5 text-xs text-slate-700 font-medium">
-                <li className="flex items-center gap-2">
-                  <CheckCircle2 className="w-4 h-4 text-emerald-700 shrink-0" />
-                  Parent / Carer plain-language summary
-                </li>
-                <li className="flex items-center gap-2">
-                  <CheckCircle2 className="w-4 h-4 text-emerald-700 shrink-0" />
-                  Class Teacher & SENCO action plan
-                </li>
-                <li className="flex items-center gap-2">
-                  <CheckCircle2 className="w-4 h-4 text-emerald-700 shrink-0" />
-                  Clinical supervision case portfolio
-                </li>
-                <li className="flex items-center gap-2">
-                  <CheckCircle2 className="w-4 h-4 text-emerald-700 shrink-0" />
-                  One-click branded PDF export
-                </li>
-              </ul>
-            </div>
+      {/* Reports */}
+      <section id="reports" className="border-t border-rule">
+        <div className="max-w-[1180px] mx-auto px-5 sm:px-8 py-20">
+          <div className="max-w-[640px] mb-12">
+            <p className="eyebrow mb-4">After the analysis</p>
+            <h2 className="display text-[34px] sm:text-[40px]">
+              One case, written three ways.
+            </h2>
+            <p className="mt-5 text-[15px] text-ink-2 leading-relaxed">
+              The same conclusions, rewritten for whoever needs to act on them.
+              Every line is editable before it leaves your hands, and exports
+              to PDF on your organisation&apos;s letterhead.
+            </p>
+          </div>
 
-            {/* Pillar 3 */}
-            <div className="rounded-2xl border border-slate-200 p-6 bg-slate-50/60 flex flex-col">
-              <div className="w-11 h-11 rounded-xl bg-amber-100 text-amber-800 flex items-center justify-center mb-4">
-                <Building2 className="w-6 h-6" />
+          <div className="grid md:grid-cols-3 gap-px bg-rule border border-rule">
+            {[
+              {
+                who: "Parents & carers",
+                what: "Warm, plain English. Starts with the child's strengths, explains what's been noticed in everyday words, and suggests a few things to try at home.",
+                sample: "“Going quiet is how she keeps herself safe when things feel too big.”",
+              },
+              {
+                who: "Class teacher & SENCO",
+                what: "Practical and specific. Triggers, reasonable adjustments, and steps that fit inside a normal school day, with a review point.",
+                sample: "“Pause reading aloud for four weeks; offer paired reading instead.”",
+              },
+              {
+                who: "Supervision record",
+                what: "A structured professional summary — formulation, reflective points, agreed actions and referrals — for your own CPD and case file.",
+                sample: "“Working formulation: anxiety-based school avoidance; review in four weeks.”",
+              },
+            ].map((r) => (
+              <div key={r.who} className="bg-paper p-7 flex flex-col">
+                <h3 className="font-serif text-[22px] mb-3">{r.who}</h3>
+                <p className="text-[14.5px] text-ink-2 leading-relaxed flex-1">{r.what}</p>
+                <p className="mt-6 pt-4 border-t border-rule font-serif italic text-[15px] text-ink-2">
+                  {r.sample}
+                </p>
               </div>
-              <h3 className="text-lg font-bold text-slate-900 mb-2">
-                3. Confidential Storage & Org Adaptability
-              </h3>
-              <p className="text-sm text-slate-600 leading-relaxed mb-4 flex-1">
-                Built on isolated multi-tenant Firebase storage with built-in
-                PII anonymisation, immutable GDPR audit trails, and instant
-                white-label customisation.
-              </p>
-              <ul className="space-y-1.5 text-xs text-slate-700 font-medium">
-                <li className="flex items-center gap-2">
-                  <CheckCircle2 className="w-4 h-4 text-amber-700 shrink-0" />
-                  Pre-analysis PII redaction (Pupil Alias)
-                </li>
-                <li className="flex items-center gap-2">
-                  <CheckCircle2 className="w-4 h-4 text-amber-700 shrink-0" />
-                  Strict per-organisation Firestore isolation
-                </li>
-                <li className="flex items-center gap-2">
-                  <CheckCircle2 className="w-4 h-4 text-amber-700 shrink-0" />
-                  Custom branding, colours & report footers
-                </li>
-                <li className="flex items-center gap-2">
-                  <CheckCircle2 className="w-4 h-4 text-amber-700 shrink-0" />
-                  Full access & export audit log
-                </li>
-              </ul>
-            </div>
+            ))}
           </div>
         </div>
       </section>
 
-      {/* Multimodal Strip */}
-      <section className="py-12 px-4 sm:px-6">
-        <div className="max-w-5xl mx-auto rounded-2xl bg-indigo-950 text-white p-8 flex flex-col md:flex-row items-center justify-between gap-6">
-          <div>
-            <h3 className="text-xl font-bold mb-2">
-              Ready to see a live UK pupil case analysed in 10 seconds?
-            </h3>
-            <p className="text-indigo-200 text-sm max-w-xl">
-              Our demo workspace includes a pre-loaded Year 5 case complete with
-              a pupil projective drawing and teacher observation notes.
+      {/* Privacy */}
+      <section id="privacy" className="border-t border-rule bg-ink text-paper">
+        <div className="max-w-[1180px] mx-auto px-5 sm:px-8 py-20 grid lg:grid-cols-12 gap-10">
+          <div className="lg:col-span-5">
+            <p className="eyebrow !text-[#a39d90] mb-4">Data protection</p>
+            <h2 className="display text-[34px] sm:text-[40px]">
+              Built for the way schools have to handle pupil data.
+            </h2>
+            <p className="mt-5 text-[15px] text-[#c9c3b6] leading-relaxed max-w-[420px]">
+              Each organisation gets its own isolated workspace. Names and
+              contact details are stripped before anything is analysed, and
+              every access is written to an audit log that can&apos;t be edited.
             </p>
-            <div className="flex flex-wrap items-center gap-4 mt-4 text-xs text-indigo-200">
-              <span className="inline-flex items-center gap-1.5">
-                <FileText className="w-4 h-4" /> Text & PDF Notes
-              </span>
-              <span className="inline-flex items-center gap-1.5">
-                <ImageIcon className="w-4 h-4" /> Pupil Drawings
-              </span>
-              <span className="inline-flex items-center gap-1.5">
-                <Mic className="w-4 h-4" /> Audio Recordings
-              </span>
-            </div>
           </div>
 
-          <button
-            type="button"
-            onClick={handleLaunchDemo}
-            className="shrink-0 inline-flex items-center gap-2 px-6 py-3 rounded-xl bg-white text-indigo-950 font-semibold hover:bg-indigo-50 transition-colors cursor-pointer"
-          >
-            Open Demo Vault
-            <ArrowRight className="w-4 h-4" />
+          <dl className="lg:col-span-7 divide-y divide-[#36342e] border-y border-[#36342e]">
+            {[
+              ["Hosting", "Google Cloud, London (europe-west2)"],
+              ["Isolation", "Separate data space per school, trust or local authority"],
+              ["Identifiers", "Pupil aliases; names, postcodes, DOBs and phone numbers redacted"],
+              ["Audit", "Append-only log of every case, report and export action"],
+              ["Model training", "Processed on the paid Gemini API tier, which excludes use for model training"],
+              ["Framework", "Designed around UK GDPR and the Data Protection Act 2018"],
+            ].map(([k, v]) => (
+              <div key={k} className="grid grid-cols-[140px_1fr] gap-6 py-4">
+                <dt className="font-mono text-[12px] uppercase tracking-wider text-[#a39d90] pt-0.5">
+                  {k}
+                </dt>
+                <dd className="text-[15px] text-paper">{v}</dd>
+              </div>
+            ))}
+          </dl>
+        </div>
+      </section>
+
+      {/* Closing */}
+      <section className="border-t border-rule">
+        <div className="max-w-[1180px] mx-auto px-5 sm:px-8 py-16 flex flex-col md:flex-row md:items-end justify-between gap-8">
+          <div>
+            <h2 className="display text-[30px] sm:text-[36px] max-w-[560px]">
+              See it on a real case before you decide.
+            </h2>
+            <p className="mt-3 text-[15px] text-ink-2">
+              The demo opens on an anonymised Year 5 case with a drawing and
+              teacher notes attached.
+            </p>
+          </div>
+          <button type="button" onClick={openDemo} className="btn btn-primary h-11 px-5 text-[15px] self-start md:self-auto">
+            Open the demo
+            <ArrowUpRight className="w-4 h-4" strokeWidth={1.8} />
           </button>
         </div>
       </section>
 
-      <footer className="mt-auto py-6 border-t border-slate-200 bg-white text-center text-xs text-slate-500">
-        SupervizAI UK Education Demo • Designed for School & Educational
-        Psychologists • UK GDPR & Data Protection Act 2018 Aligned
+      <footer className="border-t border-rule mt-auto">
+        <div className="max-w-[1180px] mx-auto px-5 sm:px-8 py-6 flex flex-wrap items-center justify-between gap-3 text-[12.5px] text-ink-3">
+          <span>© {new Date().getFullYear()} Superviz</span>
+          <span>Supervision support for practitioners. Not a substitute for clinical judgement.</span>
+        </div>
       </footer>
     </div>
   );

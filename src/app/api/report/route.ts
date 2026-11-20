@@ -221,7 +221,7 @@ Completed 4-Step Supervision Analysis:
 - Referrals: ${body.supervision.referralsNeeded.join(", ") || "None specified"}`;
 
     const response = await ai.models.generateContent({
-      model: "gemini-2.5-flash",
+      model: process.env.GEMINI_MODEL || "gemini-3.8-flash",
       contents: [{ role: "user", parts: [{ text: userPrompt }] }],
       config: {
         systemInstruction,

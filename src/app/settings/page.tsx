@@ -1,27 +1,18 @@
 "use client";
 
 import React, { useEffect, useState } from "react";
-import {
-  Building2,
-  ShieldCheck,
-  Palette,
-  Save,
-  CheckCircle2,
-  Lock,
-  History,
-  Server,
-} from "lucide-react";
+import { Check } from "lucide-react";
 import { AppShell } from "@/components/AppShell";
 import { useApp } from "@/components/AppProvider";
 import { loadAuditLogs, appendAuditLog } from "@/lib/store";
 import type { AuditLogEntry, OrgType } from "@/types";
 
-const ACCENT_PRESETS = [
-  { label: "Oxford Navy", value: "#1E3A8A" },
-  { label: "Camden Teal", value: "#0F766E" },
-  { label: "Royal Indigo", value: "#3730A3" },
-  { label: "Forest Green", value: "#166534" },
-  { label: "Slate Charcoal", value: "#1E293B" },
+const ACCENTS = [
+  { label: "Forest", value: "#1F4D3A" },
+  { label: "Oxblood", value: "#6E2A26" },
+  { label: "Ink blue", value: "#1E3557" },
+  { label: "Slate", value: "#3A4652" },
+  { label: "Ochre", value: "#8A5A12" },
 ];
 
 const ORG_TYPES: OrgType[] = [
@@ -30,6 +21,36 @@ const ORG_TYPES: OrgType[] = [
   "Independent School",
   "Educational Psychology Practice",
 ];
+
+const ACTION_LABEL: Record<AuditLogEntry["action"], string> = {
+  CASE_CREATED: "Case opened",
+  CASE_ANALYSED: "Supervision run",
+  FILE_UPLOADED: "File attached",
+  PII_REDACTED: "Details redacted",
+  REPORT_GENERATED: "Report drafted",
+  REPORT_EXPORTED_PDF: "PDF exported",
+  ORG_SETTINGS_UPDATED: "Settings changed",
+};
+
+function Row({
+  label,
+  hint,
+  children,
+}: {
+  label: string;
+  hint?: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <div className="grid md:grid-cols-[240px_1fr] gap-3 md:gap-10 py-7 border-t border-rule">
+      <div>
+        <p className="text-[14px] font-medium text-ink">{label}</p>
+        {hint && <p className="mt-1 text-[13px] leading-relaxed text-ink-3">{hint}</p>}
+      </div>
+      <div className="max-w-[680px]">{children}</div>
+    </div>
+  );
+}
 
 export default function SettingsPage() {
   const {
@@ -40,6 +61,7 @@ export default function SettingsPage() {
     switchOrganisation,
     updateActiveOrganisation,
     firebaseReady,
+    isDemoSession,
     signInDemo,
   } = useApp();
 
@@ -48,17 +70,13 @@ export default function SettingsPage() {
   const [type, setType] = useState<OrgType>(activeOrg.type);
   const [accentColor, setAccentColor] = useState(activeOrg.accentColor);
   const [reportFooter, setReportFooter] = useState(activeOrg.reportFooter);
-  const [customPromptNote, setCustomPromptNote] = useState(
-    activeOrg.customPromptNote
-  );
+  const [customPromptNote, setCustomPromptNote] = useState(activeOrg.customPromptNote);
   const [saving, setSaving] = useState(false);
-  const [savedNotice, setSavedNotice] = useState(false);
+  const [saved, setSaved] = useState(false);
   const [auditLogs, setAuditLogs] = useState<AuditLogEntry[]>([]);
 
   useEffect(() => {
-    if (!authLoading && !user) {
-      signInDemo();
-    }
+    if (!authLoading && !user) signInDemo();
   }, [authLoading, user, signInDemo]);
 
   useEffect(() => {
@@ -68,22 +86,22 @@ export default function SettingsPage() {
     setAccentColor(activeOrg.accentColor);
     setReportFooter(activeOrg.reportFooter);
     setCustomPromptNote(activeOrg.customPromptNote);
-
     loadAuditLogs(activeOrg.id).then(setAuditLogs);
   }, [activeOrg]);
+
+  const dirty =
+    name !== activeOrg.name ||
+    logoText !== activeOrg.logoText ||
+    type !== activeOrg.type ||
+    accentColor !== activeOrg.accentColor ||
+    reportFooter !== activeOrg.reportFooter ||
+    customPromptNote !== activeOrg.customPromptNote;
 
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!user) return;
     setSaving(true);
-    await updateActiveOrganisation({
-      name,
-      logoText,
-      type,
-      accentColor,
-      reportFooter,
-      customPromptNote,
-    });
+    await updateActiveOrganisation({ name, logoText, type, accentColor, reportFooter, customPromptNote });
     const log = await appendAuditLog({
       orgId: activeOrg.id,
       actorUid: user.uid,
@@ -91,298 +109,194 @@ export default function SettingsPage() {
       action: "ORG_SETTINGS_UPDATED",
       targetType: "organisation",
       targetId: activeOrg.id,
-      details: `Updated branding, footer, and supervision guidelines for ${name}`,
+      details: `Updated organisation settings for ${name}`,
     });
     setAuditLogs((prev) => [log, ...prev]);
     setSaving(false);
-    setSavedNotice(true);
-    setTimeout(() => setSavedNotice(false), 3000);
+    setSaved(true);
+    setTimeout(() => setSaved(false), 2500);
   };
+
+  const cloudSynced = firebaseReady && !isDemoSession;
 
   return (
     <AppShell>
-      <div className="mb-6">
-        <h1 className="text-2xl font-bold text-slate-900">
-          Organisation Adaptability & Privacy Governance
-        </h1>
-        <p className="text-sm text-slate-600 mt-1">
-          Configure white-label branding, custom report templates, and review
-          your organisation&apos;s UK GDPR security controls and audit trail.
-        </p>
-      </div>
-
-      {/* Quick Org Switcher Banner for Live Demos */}
-      <div className="bg-white rounded-2xl border border-slate-200 p-5 mb-6 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-slate-100 flex items-center justify-center text-slate-700">
-            <Building2 className="w-5 h-5" />
-          </div>
-          <div>
-            <div className="text-sm font-bold text-slate-900">
-              Multi-Tenant Organisation Switcher
-            </div>
-            <div className="text-xs text-slate-500">
-              Each school, MAT, or Local Authority has strictly isolated
-              Firestore collections and custom branding.
-            </div>
-          </div>
+      <div className="flex flex-col md:flex-row md:items-end justify-between gap-6 mb-10">
+        <div>
+          <h1 className="display text-[40px]">Organisation</h1>
+          <p className="mt-2 text-[14.5px] text-ink-2 max-w-[560px]">
+            How Superviz presents itself to your staff and on the reports you
+            send out, and a record of who has done what.
+          </p>
         </div>
-
-        <div className="flex flex-wrap gap-2">
-          {organisations.map((org) => (
-            <button
-              key={org.id}
-              type="button"
-              onClick={() => switchOrganisation(org.id)}
-              className={`px-3.5 py-2 rounded-xl text-xs font-semibold border transition-all cursor-pointer ${
-                org.id === activeOrg.id
-                  ? "text-white border-transparent shadow-xs"
-                  : "bg-white text-slate-700 border-slate-200 hover:bg-slate-50"
-              }`}
-              style={
-                org.id === activeOrg.id
-                  ? { backgroundColor: org.accentColor }
-                  : undefined
-              }
-            >
-              {org.name}
-            </button>
-          ))}
-        </div>
-      </div>
-
-      <div className="grid lg:grid-cols-12 gap-6">
-        {/* White-Label Form */}
-        <form
-          onSubmit={handleSave}
-          className="lg:col-span-7 bg-white rounded-2xl border border-slate-200 p-6 space-y-5"
-        >
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <Palette className="w-5 h-5 text-slate-700" />
-              <h2 className="text-base font-bold text-slate-900">
-                White-Label Branding & Report Adaptation
-              </h2>
-            </div>
-            {savedNotice && (
-              <span className="inline-flex items-center gap-1 text-xs font-semibold text-emerald-700">
-                <CheckCircle2 className="w-4 h-4" /> Saved
-              </span>
-            )}
-          </div>
-
-          <div className="grid sm:grid-cols-2 gap-4">
-            <div>
-              <label className="block text-xs font-semibold text-slate-700 mb-1">
-                Organisation Full Name
-              </label>
-              <input
-                type="text"
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                className="w-full px-3.5 py-2 rounded-lg border border-slate-300 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
-              />
-            </div>
-
-            <div>
-              <label className="block text-xs font-semibold text-slate-700 mb-1">
-                Organisation Type
-              </label>
-              <select
-                value={type}
-                onChange={(e) => setType(e.target.value as OrgType)}
-                className="w-full px-3.5 py-2 rounded-lg border border-slate-300 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
+        {organisations.length > 1 && (
+          <div className="flex items-center gap-1 text-[13px]">
+            <span className="text-ink-3 mr-2">Workspace</span>
+            {organisations.map((org) => (
+              <button
+                key={org.id}
+                type="button"
+                onClick={() => switchOrganisation(org.id)}
+                className={`px-3 py-1.5 rounded-[3px] border cursor-pointer transition-colors ${
+                  org.id === activeOrg.id
+                    ? "border-ink bg-ink text-paper"
+                    : "border-rule-strong text-ink-2 hover:border-ink"
+                }`}
               >
-                {ORG_TYPES.map((t) => (
-                  <option key={t} value={t}>
-                    {t}
-                  </option>
-                ))}
-              </select>
-            </div>
+                {org.logoText}
+              </button>
+            ))}
           </div>
-
-          <div className="grid sm:grid-cols-2 gap-4">
-            <div>
-              <label className="block text-xs font-semibold text-slate-700 mb-1">
-                Short Header Label
-              </label>
-              <input
-                type="text"
-                value={logoText}
-                onChange={(e) => setLogoText(e.target.value)}
-                className="w-full px-3.5 py-2 rounded-lg border border-slate-300 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
-              />
-            </div>
-
-            <div>
-              <label className="block text-xs font-semibold text-slate-700 mb-1">
-                Brand Accent Colour (UI & PDF Headers)
-              </label>
-              <div className="flex items-center gap-2">
-                {ACCENT_PRESETS.map((p) => (
-                  <button
-                    key={p.value}
-                    type="button"
-                    title={p.label}
-                    onClick={() => setAccentColor(p.value)}
-                    className={`w-7 h-7 rounded-full border-2 cursor-pointer ${
-                      accentColor === p.value
-                        ? "border-slate-900 scale-110"
-                        : "border-transparent"
-                    }`}
-                    style={{ backgroundColor: p.value }}
-                  />
-                ))}
-                <input
-                  type="color"
-                  value={accentColor}
-                  onChange={(e) => setAccentColor(e.target.value)}
-                  className="w-8 h-8 rounded cursor-pointer border border-slate-200"
-                />
-              </div>
-            </div>
-          </div>
-
-          <div>
-            <label className="block text-xs font-semibold text-slate-700 mb-1">
-              PDF Report Confidentiality Footer
-            </label>
-            <textarea
-              rows={2}
-              value={reportFooter}
-              onChange={(e) => setReportFooter(e.target.value)}
-              className="w-full px-3.5 py-2 rounded-lg border border-slate-300 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
-            />
-          </div>
-
-          <div>
-            <label className="block text-xs font-semibold text-slate-700 mb-1">
-              Organisation-Specific Supervision Policy / Guidance
-            </label>
-            <textarea
-              rows={3}
-              value={customPromptNote}
-              onChange={(e) => setCustomPromptNote(e.target.value)}
-              className="w-full px-3.5 py-2 rounded-lg border border-slate-300 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
-            />
-            <p className="text-[11px] text-slate-500 mt-1">
-              Automatically appended to the 4-step supervisor instructions for
-              this organisation.
-            </p>
-          </div>
-
-          {/* Live PDF Header Preview */}
-          <div className="rounded-xl border border-slate-200 overflow-hidden">
-            <div
-              className="px-4 py-3 text-white"
-              style={{ backgroundColor: accentColor }}
-            >
-              <div className="text-xs font-bold">{name || "Organisation"}</div>
-              <div className="text-[10px] opacity-85">
-                CONFIDENTIAL CASE PORTFOLIO • {type} • UK GDPR Protected
-              </div>
-            </div>
-            <div className="px-4 py-2 bg-slate-50 text-[11px] text-slate-500">
-              Live PDF Header Preview — applies immediately on Save
-            </div>
-          </div>
-
-          <button
-            type="submit"
-            disabled={saving}
-            style={{ backgroundColor: accentColor }}
-            className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl text-white text-sm font-semibold hover:opacity-95 disabled:opacity-50 cursor-pointer"
-          >
-            <Save className="w-4 h-4" />
-            {saving ? "Saving..." : "Save Organisation Configuration"}
-          </button>
-        </form>
-
-        {/* Right Column: Compliance & Audit Log */}
-        <div className="lg:col-span-5 space-y-5">
-          {/* Privacy & Architecture Card */}
-          <div className="bg-white rounded-2xl border border-slate-200 p-6">
-            <div className="flex items-center gap-2 mb-3">
-              <ShieldCheck className="w-5 h-5 text-emerald-700" />
-              <h2 className="text-base font-bold text-slate-900">
-                Confidentiality & UK GDPR Controls
-              </h2>
-            </div>
-
-            <div className="space-y-3 text-xs text-slate-700">
-              <div className="flex items-start gap-2.5 p-3 rounded-xl bg-emerald-50/70 border border-emerald-100">
-                <Server className="w-4 h-4 text-emerald-700 shrink-0 mt-0.5" />
-                <div>
-                  <div className="font-bold text-emerald-950">
-                    Firebase Backend: Project &ldquo;Superviz&rdquo;
-                  </div>
-                  <div className="text-emerald-900/80 mt-0.5">
-                    Status:{" "}
-                    <strong>
-                      {firebaseReady
-                        ? "Connected to Cloud Firestore & Storage"
-                        : "Ready for .env.local keys (Demo Vault active)"}
-                    </strong>{" "}
-                    • Target Region: {activeOrg.dataRegion}.
-                  </div>
-                </div>
-              </div>
-
-              <div className="flex items-start gap-2.5 p-3 rounded-xl bg-slate-50 border border-slate-200">
-                <Lock className="w-4 h-4 text-slate-700 shrink-0 mt-0.5" />
-                <div>
-                  <div className="font-bold text-slate-900">
-                    Strict Tenant Isolation & Zero AI Training
-                  </div>
-                  <div className="text-slate-600 mt-0.5">
-                    Firestore Security Rules isolate every{" "}
-                    <code className="text-[11px]">organisations/&#123;orgId&#125;</code>{" "}
-                    tenant, enforce RBAC, and make audit logs append-only.
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          {/* Immutable Audit Log */}
-          <div className="bg-white rounded-2xl border border-slate-200 p-6">
-            <div className="flex items-center gap-2 mb-3">
-              <History className="w-5 h-5 text-slate-700" />
-              <h2 className="text-base font-bold text-slate-900">
-                Immutable Compliance Audit Log
-              </h2>
-            </div>
-
-            <div className="space-y-2.5 max-h-[380px] overflow-y-auto pr-1">
-              {auditLogs.map((log) => (
-                <div
-                  key={log.id}
-                  className="p-3 rounded-xl border border-slate-100 bg-slate-50/70 text-xs"
-                >
-                  <div className="flex items-center justify-between gap-2 mb-1">
-                    <span className="font-bold text-indigo-900">
-                      {log.action.replace(/_/g, " ")}
-                    </span>
-                    <span className="text-[10px] text-slate-400">
-                      {new Date(log.createdAt).toLocaleString("en-GB", {
-                        day: "2-digit",
-                        month: "short",
-                        hour: "2-digit",
-                        minute: "2-digit",
-                      })}
-                    </span>
-                  </div>
-                  <div className="text-slate-700">{log.details}</div>
-                  <div className="text-[11px] text-slate-500 mt-1">
-                    Actor: {log.actorName}
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
+        )}
       </div>
+
+      {/* Branding & reports */}
+      <form onSubmit={handleSave} className="mb-20">
+        <h2 className="font-serif text-[24px] mb-1">Identity and reports</h2>
+        <p className="text-[13.5px] text-ink-3 mb-6">Changes apply to every member of this workspace.</p>
+
+        <Row label="Organisation name" hint="Shown at the top of every report.">
+          <input className="field" value={name} onChange={(e) => setName(e.target.value)} />
+        </Row>
+
+        <Row label="Short name" hint="Used in menus where space is tight.">
+          <input className="field max-w-[260px]" value={logoText} onChange={(e) => setLogoText(e.target.value)} />
+        </Row>
+
+        <Row label="Type">
+          <select className="field max-w-[360px]" value={type} onChange={(e) => setType(e.target.value as OrgType)}>
+            {ORG_TYPES.map((t) => (
+              <option key={t} value={t}>
+                {t}
+              </option>
+            ))}
+          </select>
+        </Row>
+
+        <Row label="Colour" hint="A single accent used for buttons, the logo mark and report headers.">
+          <div className="flex flex-wrap items-center gap-2">
+            {ACCENTS.map((a) => (
+              <button
+                key={a.value}
+                type="button"
+                onClick={() => setAccentColor(a.value)}
+                className={`flex items-center gap-2 pl-1.5 pr-3 py-1.5 rounded-[3px] border text-[13px] cursor-pointer transition-colors ${
+                  accentColor.toLowerCase() === a.value.toLowerCase()
+                    ? "border-ink text-ink"
+                    : "border-rule-strong text-ink-2 hover:border-ink-3"
+                }`}
+              >
+                <span className="w-5 h-5 rounded-[2px]" style={{ backgroundColor: a.value }} />
+                {a.label}
+              </button>
+            ))}
+            <label className="flex items-center gap-2 pl-1.5 pr-3 py-1.5 rounded-[3px] border border-rule-strong text-[13px] text-ink-2 cursor-pointer">
+              <input
+                type="color"
+                value={accentColor}
+                onChange={(e) => setAccentColor(e.target.value)}
+                className="w-5 h-5 cursor-pointer bg-transparent"
+              />
+              Custom
+            </label>
+          </div>
+        </Row>
+
+        <Row label="Report footer" hint="Printed at the bottom of every page of exported PDFs.">
+          <textarea rows={3} className="field leading-relaxed" value={reportFooter} onChange={(e) => setReportFooter(e.target.value)} />
+        </Row>
+
+        <Row
+          label="Supervision guidance"
+          hint="Local policy or emphasis the supervisor should take into account — for example your graduated response model or referral pathways."
+        >
+          <textarea rows={4} className="field leading-relaxed" value={customPromptNote} onChange={(e) => setCustomPromptNote(e.target.value)} />
+        </Row>
+
+        <Row label="Preview">
+          <div className="sheet rounded-[2px] overflow-hidden">
+            <div className="h-[4px]" style={{ backgroundColor: accentColor }} />
+            <div className="px-6 py-5 flex items-start justify-between gap-4">
+              <div>
+                <p className="font-serif text-[17px]">{name || "Organisation name"}</p>
+                <p className="text-[12px] text-ink-3 mt-0.5">{type}</p>
+              </div>
+              <span className="font-mono text-[10.5px] text-ink-3">CONFIDENTIAL</span>
+            </div>
+            <div className="px-6 pb-5">
+              <div className="h-2 w-2/3 bg-rule rounded-[1px]" />
+              <div className="h-2 w-1/2 bg-rule rounded-[1px] mt-2" />
+              <p className="mt-5 pt-3 border-t border-rule text-[10.5px] leading-relaxed text-ink-3 line-clamp-2">
+                {reportFooter}
+              </p>
+            </div>
+          </div>
+        </Row>
+
+        <div className="border-t border-rule pt-6 flex items-center justify-end gap-4">
+          {saved && (
+            <span className="inline-flex items-center gap-1.5 text-[13px] text-moss">
+              <Check className="w-4 h-4" strokeWidth={2} />
+              Saved
+            </span>
+          )}
+          <button type="submit" disabled={saving || !dirty} className="btn btn-primary">
+            {saving ? "Saving…" : "Save changes"}
+          </button>
+        </div>
+      </form>
+
+      {/* Data & governance */}
+      <section className="mb-20">
+        <h2 className="font-serif text-[24px] mb-6">Data and governance</h2>
+        <dl className="divide-y divide-rule border-y border-rule">
+          {[
+            ["Storage", cloudSynced ? "Cloud Firestore and Cloud Storage, project superviz-de8b3" : "This browser only (demo session). Sign in to store cases in Firestore."],
+            ["Region", activeOrg.dataRegion],
+            ["Isolation", `All records sit under organisations/${activeOrg.id} and are inaccessible to other workspaces.`],
+            ["Identifiers", "Pupils are referred to by alias. Names, emails, phone numbers, postcodes and dates are stripped before analysis."],
+            ["Audit", "Every case, report and export action is logged. Entries cannot be edited or deleted."],
+          ].map(([k, v]) => (
+            <div key={k} className="grid md:grid-cols-[240px_1fr] gap-2 md:gap-10 py-4">
+              <dt className="text-[14px] text-ink-3">{k}</dt>
+              <dd className="text-[14px] text-ink max-w-[620px]">{v}</dd>
+            </div>
+          ))}
+        </dl>
+      </section>
+
+      {/* Audit log */}
+      <section>
+        <div className="flex items-baseline justify-between mb-6">
+          <h2 className="font-serif text-[24px]">Activity</h2>
+          <span className="font-mono text-[11px] text-ink-3">{auditLogs.length} entries</span>
+        </div>
+        <div className="border-y border-rule">
+          <div className="hidden md:grid grid-cols-[150px_170px_1fr_180px] gap-6 py-3 eyebrow border-b border-rule">
+            <span>When</span>
+            <span>Action</span>
+            <span>Detail</span>
+            <span>By</span>
+          </div>
+          <ul className="divide-y divide-rule max-h-[440px] overflow-y-auto">
+            {auditLogs.map((log) => (
+              <li key={log.id} className="grid md:grid-cols-[150px_170px_1fr_180px] gap-1 md:gap-6 py-3.5 text-[13.5px]">
+                <span className="font-mono text-[12px] text-ink-3 md:pt-[1px]">
+                  {new Date(log.createdAt).toLocaleString("en-GB", {
+                    day: "2-digit",
+                    month: "short",
+                    hour: "2-digit",
+                    minute: "2-digit",
+                  })}
+                </span>
+                <span className="text-ink">{ACTION_LABEL[log.action] || log.action}</span>
+                <span className="text-ink-2">{log.details}</span>
+                <span className="text-ink-3">{log.actorName}</span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      </section>
     </AppShell>
   );
 }

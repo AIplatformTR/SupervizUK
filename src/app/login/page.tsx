@@ -3,13 +3,13 @@
 import React, { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Brain, Lock, ShieldCheck, ArrowRight, Sparkles } from "lucide-react";
+import { ArrowRight } from "lucide-react";
 import { useApp } from "@/components/AppProvider";
+import { Logo } from "@/components/Logo";
 
 export default function LoginPage() {
   const router = useRouter();
-  const { signInDemo, signInWithEmail, signUpWithEmail, firebaseReady } =
-    useApp();
+  const { signInDemo, signInWithEmail, signUpWithEmail } = useApp();
 
   const [mode, setMode] = useState<"signin" | "signup">("signin");
   const [displayName, setDisplayName] = useState("");
@@ -31,162 +31,165 @@ export default function LoginPage() {
       if (mode === "signin") {
         await signInWithEmail(email, password);
       } else {
-        await signUpWithEmail(
-          email,
-          password,
-          displayName || "Educational Psychologist"
-        );
+        await signUpWithEmail(email, password, displayName || "Educational Psychologist");
       }
       router.push("/dashboard");
     } catch (err) {
-      setError(
-        err instanceof Error ? err.message : "Authentication failed. Please try again."
-      );
+      const msg = err instanceof Error ? err.message : "";
+      if (msg.includes("auth/invalid-credential") || msg.includes("auth/wrong-password")) {
+        setError("That email and password don't match an account.");
+      } else if (msg.includes("auth/email-already-in-use")) {
+        setError("An account with this email already exists. Try signing in.");
+      } else if (msg.includes("auth/operation-not-allowed") || msg.includes("auth/configuration-not-found")) {
+        setError("Email sign-in isn't enabled for this organisation yet.");
+      } else {
+        setError("We couldn't sign you in. Please try again.");
+      }
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <div className="min-h-screen bg-slate-50 flex flex-col justify-center items-center px-4 py-12">
-      <Link href="/" className="flex items-center gap-2.5 mb-8">
-        <div className="w-10 h-10 rounded-xl bg-indigo-900 flex items-center justify-center text-white shadow-sm">
-          <Brain className="w-6 h-6" />
-        </div>
-        <div className="leading-tight">
-          <div className="font-bold text-xl text-slate-900">SupervizAI</div>
-          <div className="text-xs text-slate-500">
-            UK Educational Psychology Supervision
-          </div>
-        </div>
-      </Link>
+    <div className="min-h-screen grid lg:grid-cols-2">
+      {/* Left: form */}
+      <div className="flex flex-col px-6 sm:px-12 py-8">
+        <Link href="/" className="self-start">
+          <Logo />
+        </Link>
 
-      <div className="w-full max-w-md bg-white rounded-2xl border border-slate-200 shadow-sm p-7">
-        {/* Quick Demo Button */}
-        <div className="mb-6 p-4 rounded-xl bg-indigo-50 border border-indigo-100">
-          <div className="flex items-center gap-2 text-xs font-semibold text-indigo-900 mb-1">
-            <Sparkles className="w-4 h-4" />
-            Instant Presentation Mode
+        <div className="flex-1 flex items-center">
+          <div className="w-full max-w-[380px] py-14">
+            <h1 className="display text-[36px] mb-2">
+              {mode === "signin" ? "Sign in" : "Create your account"}
+            </h1>
+            <p className="text-[14.5px] text-ink-2 mb-9">
+              {mode === "signin"
+                ? "Use the email your organisation registered you with."
+                : "You'll be added to your organisation's workspace."}
+            </p>
+
+            <form onSubmit={handleSubmit} className="space-y-5">
+              {mode === "signup" && (
+                <div>
+                  <label htmlFor="name" className="block text-[13px] font-medium text-ink mb-1.5">
+                    Full name
+                  </label>
+                  <input
+                    id="name"
+                    type="text"
+                    required
+                    value={displayName}
+                    onChange={(e) => setDisplayName(e.target.value)}
+                    placeholder="Dr Sarah Patel"
+                    className="field"
+                    autoComplete="name"
+                  />
+                </div>
+              )}
+
+              <div>
+                <label htmlFor="email" className="block text-[13px] font-medium text-ink mb-1.5">
+                  Work email
+                </label>
+                <input
+                  id="email"
+                  type="email"
+                  required
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  placeholder="name@trust.org.uk"
+                  className="field"
+                  autoComplete="email"
+                />
+              </div>
+
+              <div>
+                <div className="flex items-baseline justify-between mb-1.5">
+                  <label htmlFor="password" className="block text-[13px] font-medium text-ink">
+                    Password
+                  </label>
+                  {mode === "signup" && (
+                    <span className="text-[12px] text-ink-3">At least 6 characters</span>
+                  )}
+                </div>
+                <input
+                  id="password"
+                  type="password"
+                  required
+                  minLength={6}
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  className="field"
+                  autoComplete={mode === "signin" ? "current-password" : "new-password"}
+                />
+              </div>
+
+              {error && (
+                <p className="text-[13px] text-brick bg-brick-bg border border-[#ecc9bf] rounded-[3px] px-3 py-2">
+                  {error}
+                </p>
+              )}
+
+              <button type="submit" disabled={loading} className="btn btn-primary w-full h-10">
+                {loading ? "One moment…" : mode === "signin" ? "Sign in" : "Create account"}
+              </button>
+            </form>
+
+            <p className="mt-6 text-[13.5px] text-ink-2">
+              {mode === "signin" ? "New here? " : "Already registered? "}
+              <button
+                type="button"
+                onClick={() => {
+                  setError(null);
+                  setMode(mode === "signin" ? "signup" : "signin");
+                }}
+                className="link cursor-pointer"
+              >
+                {mode === "signin" ? "Create an account" : "Sign in instead"}
+              </button>
+            </p>
+
+            <div className="mt-12 pt-6 border-t border-rule">
+              <p className="text-[13.5px] text-ink-2 mb-3">
+                Just looking? The demo workspace has sample cases ready to open.
+              </p>
+              <button type="button" onClick={handleDemo} className="btn btn-outline">
+                Open the demo workspace
+                <ArrowRight className="w-4 h-4" strokeWidth={1.8} />
+              </button>
+            </div>
           </div>
-          <p className="text-xs text-indigo-800/80 mb-3">
-            Enter as <strong>Dr Eleanor Clarke</strong> (Oakwood MAT) with
-            pre-loaded UK pupil cases and sample drawing.
+        </div>
+
+        <p className="text-[12px] text-ink-3">
+          Hosted in London · Each organisation&apos;s data is held separately
+        </p>
+      </div>
+
+      {/* Right: quiet editorial panel */}
+      <aside className="hidden lg:flex flex-col justify-between bg-surface border-l border-rule p-14">
+        <span className="eyebrow">From a supervision note</span>
+        <blockquote className="max-w-[460px]">
+          <p className="font-serif text-[30px] leading-[1.3] text-ink">
+            “The pupil&apos;s silence is best understood as a protective freeze
+            rather than reluctance to engage with you.”
           </p>
-          <button
-            type="button"
-            onClick={handleDemo}
-            className="w-full inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg bg-indigo-900 text-white text-sm font-semibold hover:bg-indigo-800 transition-colors cursor-pointer"
-          >
-            Enter UK Demo Workspace
-            <ArrowRight className="w-4 h-4" />
-          </button>
-        </div>
-
-        <div className="relative flex items-center justify-center my-5">
-          <div className="border-t border-slate-200 w-full" />
-          <span className="bg-white px-3 text-xs text-slate-400 uppercase tracking-wider shrink-0">
-            or Firebase Auth ({firebaseReady ? "Connected" : "Config pending"})
-          </span>
-          <div className="border-t border-slate-200 w-full" />
-        </div>
-
-        <form onSubmit={handleSubmit} className="space-y-4">
-          {mode === "signup" && (
-            <div>
-              <label className="block text-xs font-semibold text-slate-700 mb-1">
-                Full Name
-              </label>
-              <input
-                type="text"
-                required
-                value={displayName}
-                onChange={(e) => setDisplayName(e.target.value)}
-                placeholder="Dr Sarah Patel"
-                className="w-full px-3.5 py-2 rounded-lg border border-slate-300 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
-              />
+          <footer className="mt-6 text-[13.5px] text-ink-3">
+            Step 03 · Working hypothesis · Year 5 case
+          </footer>
+        </blockquote>
+        <div className="grid grid-cols-4 gap-px bg-rule border border-rule">
+          {["Questions", "Strengths", "Hypothesis", "Next steps"].map((s, i) => (
+            <div key={s} className={`px-3 py-3 ${i === 2 ? "bg-sheet" : "bg-surface"}`}>
+              <span className="font-mono text-[11px] text-ink-3">0{i + 1}</span>
+              <span className={`block text-[12.5px] mt-1 ${i === 2 ? "text-ink" : "text-ink-3"}`}>
+                {s}
+              </span>
             </div>
-          )}
-
-          <div>
-            <label className="block text-xs font-semibold text-slate-700 mb-1">
-              Organisation Email
-            </label>
-            <input
-              type="email"
-              required
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              placeholder="name@schooltrust.org.uk"
-              className="w-full px-3.5 py-2 rounded-lg border border-slate-300 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
-            />
-          </div>
-
-          <div>
-            <label className="block text-xs font-semibold text-slate-700 mb-1">
-              Password
-            </label>
-            <input
-              type="password"
-              required
-              minLength={6}
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              placeholder="••••••••"
-              className="w-full px-3.5 py-2 rounded-lg border border-slate-300 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
-            />
-          </div>
-
-          {error && (
-            <div className="p-3 rounded-lg bg-red-50 border border-red-200 text-xs text-red-700">
-              {error}
-            </div>
-          )}
-
-          <button
-            type="submit"
-            disabled={loading}
-            className="w-full inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg bg-slate-900 text-white text-sm font-semibold hover:bg-slate-800 disabled:opacity-50 transition-colors cursor-pointer"
-          >
-            <Lock className="w-4 h-4" />
-            {loading
-              ? "Please wait..."
-              : mode === "signin"
-              ? "Sign in with Firebase"
-              : "Create Psychologist Account"}
-          </button>
-        </form>
-
-        <div className="mt-4 text-center text-xs text-slate-600">
-          {mode === "signin" ? (
-            <>
-              New to your organisation&apos;s workspace?{" "}
-              <button
-                type="button"
-                onClick={() => setMode("signup")}
-                className="font-semibold text-indigo-800 hover:underline cursor-pointer"
-              >
-                Create account
-              </button>
-            </>
-          ) : (
-            <>
-              Already have an account?{" "}
-              <button
-                type="button"
-                onClick={() => setMode("signin")}
-                className="font-semibold text-indigo-800 hover:underline cursor-pointer"
-              >
-                Sign in
-              </button>
-            </>
-          )}
+          ))}
         </div>
-      </div>
-
-      <div className="mt-6 flex items-center gap-2 text-xs text-slate-500">
-        <ShieldCheck className="w-4 h-4 text-emerald-600" />
-        Confidential server-side storage in Firebase project &ldquo;Superviz&rdquo;
-      </div>
+      </aside>
     </div>
   );
 }

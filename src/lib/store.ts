@@ -26,11 +26,11 @@ import type {
 } from "@/types";
 
 const LS_KEYS = {
-  orgs: "superviz_uk_orgs_v1",
-  activeOrgId: "superviz_uk_active_org_v1",
-  cases: "superviz_uk_cases_v1",
-  reports: "superviz_uk_reports_v1",
-  auditLogs: "superviz_uk_audit_v1",
+  orgs: "superviz_uk_orgs_v2",
+  activeOrgId: "superviz_uk_active_org_v2",
+  cases: "superviz_uk_cases_v2",
+  reports: "superviz_uk_reports_v2",
+  auditLogs: "superviz_uk_audit_v2",
 };
 
 function isBrowser() {

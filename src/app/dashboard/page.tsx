@@ -3,25 +3,22 @@
 import React, { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import {
-  Plus,
-  Search,
-  FolderLock,
-  FileText,
-  Image as ImageIcon,
-  Mic,
-  CheckCircle2,
-  Clock,
-  ShieldCheck,
-  Sparkles,
-  ArrowRight,
-  X,
-} from "lucide-react";
+import { Plus, Search, X, ArrowRight } from "lucide-react";
 import { AppShell } from "@/components/AppShell";
 import { useApp } from "@/components/AppProvider";
+import { StatusLabel, formatDate } from "@/components/ui";
 import { loadCases, saveCase, appendAuditLog } from "@/lib/store";
 import { redactPII } from "@/lib/pii";
 import type { PupilCase, CaseStatus } from "@/types";
+
+function materialsOf(c: PupilCase) {
+  const parts: string[] = [];
+  const n = (k: string) => c.attachments.filter((a) => a.kind === k).length;
+  if (n("image")) parts.push(n("image") > 1 ? `${n("image")} drawings` : "drawing");
+  if (n("text") + n("pdf")) parts.push("notes");
+  if (n("audio")) parts.push("audio");
+  return parts.length ? parts.join(" · ") : "—";
+}
 
 export default function DashboardPage() {
   const router = useRouter();
@@ -32,21 +29,17 @@ export default function DashboardPage() {
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<"all" | CaseStatus>("all");
 
-  // New Case Modal State
-  const [showNewModal, setShowNewModal] = useState(false);
+  const [showNew, setShowNew] = useState(false);
   const [pupilAlias, setPupilAlias] = useState("Pupil C");
-  const [pupilRealNameToStrip, setPupilRealNameToStrip] = useState("");
-  const [yearGroup, setYearGroup] = useState("Year 6 (Age 10)");
+  const [realName, setRealName] = useState("");
+  const [yearGroup, setYearGroup] = useState("Year 6");
   const [caseTitle, setCaseTitle] = useState("");
   const [caseSummary, setCaseSummary] = useState("");
   const [piiNotice, setPiiNotice] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
 
-  // Auto-enter demo if visiting dashboard directly without auth
   useEffect(() => {
-    if (!authLoading && !user) {
-      signInDemo();
-    }
+    if (!authLoading && !user) signInDemo();
   }, [authLoading, user, signInDemo]);
 
   useEffect(() => {
@@ -63,31 +56,43 @@ export default function DashboardPage() {
     };
   }, [activeOrg.id]);
 
-  const handleAnonymiseDraft = () => {
-    const res = redactPII(caseSummary, pupilRealNameToStrip, pupilAlias);
-    setCaseSummary(res.redactedText);
-    if (res.replacementsCount > 0) {
-      setPiiNotice(
-        `Redacted ${res.replacementsCount} identifier(s): ${res.detectedItems.join(", ")}`
-      );
-    } else {
-      setPiiNotice("No obvious personal identifiers detected in the text.");
-    }
+  useEffect(() => {
+    if (!showNew) return;
+    const onKey = (e: KeyboardEvent) => e.key === "Escape" && setShowNew(false);
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [showNew]);
+
+  const openNew = () => {
+    setPiiNotice(null);
+    setCaseTitle("");
+    setCaseSummary("");
+    setRealName("");
+    setPupilAlias(`Pupil ${String.fromCharCode(65 + (cases.length % 26))}`);
+    setShowNew(true);
   };
 
-  const handleCreateCase = async (e: React.FormEvent) => {
+  const handleRedact = () => {
+    const res = redactPII(caseSummary, realName, pupilAlias);
+    setCaseSummary(res.redactedText);
+    setPiiNotice(
+      res.replacementsCount > 0
+        ? `Removed: ${res.detectedItems.join(", ")}.`
+        : "Nothing identifying found."
+    );
+  };
+
+  const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!caseTitle.trim() || !caseSummary.trim() || !user) return;
-
     setCreating(true);
-    // Always run automatic PII stripping before persisting
-    const cleaned = redactPII(caseSummary, pupilRealNameToStrip, pupilAlias);
+    const cleaned = redactPII(caseSummary, realName, pupilAlias);
     const now = new Date().toISOString();
     const newCase: PupilCase = {
       id: `case-${Date.now()}`,
       orgId: activeOrg.id,
       pupilAlias: pupilAlias.trim() || "Pupil X",
-      yearGroup: yearGroup.trim() || "Not specified",
+      yearGroup: yearGroup.trim() || "—",
       title: caseTitle.trim(),
       summary: cleaned.redactedText,
       status: "in_analysis",
@@ -95,17 +100,11 @@ export default function DashboardPage() {
       createdByName: user.displayName,
       attachments: [],
       messages: [
-        {
-          id: `msg-${Date.now()}`,
-          role: "user",
-          content: cleaned.redactedText,
-          createdAt: now,
-        },
+        { id: `msg-${Date.now()}`, role: "user", content: cleaned.redactedText, createdAt: now },
       ],
       createdAt: now,
       updatedAt: now,
     };
-
     await saveCase(newCase);
     await appendAuditLog({
       orgId: activeOrg.id,
@@ -114,364 +113,256 @@ export default function DashboardPage() {
       action: "CASE_CREATED",
       targetType: "case",
       targetId: newCase.id,
-      details: `Created confidential case for ${newCase.pupilAlias} (${newCase.yearGroup})`,
+      details: `Opened case for ${newCase.pupilAlias} (${newCase.yearGroup})`,
     });
-
-    setCases((prev) => [newCase, ...prev]);
-    setShowNewModal(false);
     setCreating(false);
+    setShowNew(false);
     router.push(`/cases/${newCase.id}`);
   };
 
-  const filtered = cases.filter((c) => {
-    const matchesStatus = statusFilter === "all" || c.status === statusFilter;
-    const q = search.trim().toLowerCase();
-    const matchesSearch =
-      !q ||
-      c.pupilAlias.toLowerCase().includes(q) ||
-      c.title.toLowerCase().includes(q) ||
-      c.yearGroup.toLowerCase().includes(q);
-    return matchesStatus && matchesSearch;
-  });
+  const q = search.trim().toLowerCase();
+  const filtered = cases.filter(
+    (c) =>
+      (statusFilter === "all" || c.status === statusFilter) &&
+      (!q ||
+        c.pupilAlias.toLowerCase().includes(q) ||
+        c.title.toLowerCase().includes(q) ||
+        c.yearGroup.toLowerCase().includes(q))
+  );
 
-  const stats = {
-    total: cases.length,
-    inAnalysis: cases.filter((c) => c.status === "in_analysis").length,
-    reportReady: cases.filter((c) => c.status === "report_ready").length,
+  const counts = {
+    all: cases.length,
+    in_analysis: cases.filter((c) => c.status === "in_analysis").length,
+    report_ready: cases.filter((c) => c.status === "report_ready").length,
+    archived: cases.filter((c) => c.status === "archived").length,
   };
+
+  const greeting = (() => {
+    const h = new Date().getHours();
+    return h < 12 ? "Good morning" : h < 18 ? "Good afternoon" : "Good evening";
+  })();
+  const firstName = user?.displayName.replace(/^(Dr|Mr|Mrs|Ms|Miss)\.?\s+/i, "").split(" ")[0];
 
   return (
     <AppShell>
-      {/* Top Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
+      {/* Heading */}
+      <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-6 mb-10">
         <div>
-          <div className="flex items-center gap-2 text-xs font-semibold text-emerald-700 mb-1">
-            <ShieldCheck className="w-4 h-4" />
-            <span>
-              Confidential Case Vault • {activeOrg.name} ({activeOrg.dataRegion})
-            </span>
-          </div>
-          <h1 className="text-2xl font-bold text-slate-900">Pupil Cases</h1>
+          <p className="text-[14px] text-ink-3 mb-2">
+            {greeting}{firstName ? `, ${firstName}` : ""}.
+          </p>
+          <h1 className="display text-[40px]">Cases</h1>
+          <p className="mt-2 text-[14.5px] text-ink-2">
+            {counts.in_analysis > 0
+              ? `${counts.in_analysis} ${counts.in_analysis === 1 ? "case is" : "cases are"} waiting for supervision.`
+              : "Everything is up to date."}
+          </p>
         </div>
-
-        <button
-          type="button"
-          onClick={() => {
-            setPiiNotice(null);
-            setCaseTitle("");
-            setCaseSummary("");
-            setPupilRealNameToStrip("");
-            setPupilAlias(`Pupil ${String.fromCharCode(65 + cases.length)}`);
-            setShowNewModal(true);
-          }}
-          style={{ backgroundColor: activeOrg.accentColor }}
-          className="inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-white text-sm font-semibold shadow-sm hover:opacity-95 transition-opacity cursor-pointer"
-        >
-          <Plus className="w-4 h-4" />
-          New Pupil Case
+        <button type="button" onClick={openNew} className="btn btn-primary self-start sm:self-auto">
+          <Plus className="w-4 h-4" strokeWidth={1.8} />
+          New case
         </button>
       </div>
 
-      {/* KPI Strip */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
-        <div className="bg-white rounded-xl border border-slate-200 p-4 flex items-center justify-between">
-          <div>
-            <div className="text-xs font-medium text-slate-500">
-              Total Confidential Cases
-            </div>
-            <div className="text-2xl font-bold text-slate-900 mt-0.5">
-              {stats.total}
-            </div>
-          </div>
-          <div className="w-10 h-10 rounded-lg bg-slate-100 flex items-center justify-center text-slate-600">
-            <FolderLock className="w-5 h-5" />
-          </div>
-        </div>
-
-        <div className="bg-white rounded-xl border border-slate-200 p-4 flex items-center justify-between">
-          <div>
-            <div className="text-xs font-medium text-slate-500">
-              In 4-Step Supervision
-            </div>
-            <div className="text-2xl font-bold text-amber-700 mt-0.5">
-              {stats.inAnalysis}
-            </div>
-          </div>
-          <div className="w-10 h-10 rounded-lg bg-amber-50 flex items-center justify-center text-amber-600">
-            <Clock className="w-5 h-5" />
-          </div>
-        </div>
-
-        <div className="bg-white rounded-xl border border-slate-200 p-4 flex items-center justify-between">
-          <div>
-            <div className="text-xs font-medium text-slate-500">
-              Portfolio / Report Ready
-            </div>
-            <div className="text-2xl font-bold text-emerald-700 mt-0.5">
-              {stats.reportReady}
-            </div>
-          </div>
-          <div className="w-10 h-10 rounded-lg bg-emerald-50 flex items-center justify-center text-emerald-600">
-            <CheckCircle2 className="w-5 h-5" />
-          </div>
-        </div>
-      </div>
-
-      {/* Search & Filter */}
-      <div className="flex flex-col sm:flex-row gap-3 mb-5">
-        <div className="relative flex-1">
-          <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
-          <input
-            type="text"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search by pupil alias, year group, or presenting concern..."
-            className="w-full pl-10 pr-4 py-2 rounded-xl bg-white border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
-          />
-        </div>
-
-        <div className="flex items-center gap-1.5 bg-white border border-slate-200 rounded-xl p-1">
+      {/* Toolbar */}
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-rule">
+        <div className="flex items-center gap-6 -mb-px overflow-x-auto">
           {(
             [
-              { id: "all", label: "All" },
-              { id: "in_analysis", label: "In Analysis" },
-              { id: "report_ready", label: "Report Ready" },
-              { id: "archived", label: "Archived" },
+              ["all", "All"],
+              ["in_analysis", "Awaiting supervision"],
+              ["report_ready", "Report ready"],
+              ["archived", "Archived"],
             ] as const
-          ).map((tab) => (
+          ).map(([id, label]) => (
             <button
-              key={tab.id}
+              key={id}
               type="button"
-              onClick={() => setStatusFilter(tab.id)}
-              className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors cursor-pointer ${
-                statusFilter === tab.id
-                  ? "bg-slate-900 text-white"
-                  : "text-slate-600 hover:bg-slate-100"
+              onClick={() => setStatusFilter(id)}
+              className={`pb-3 text-[14px] whitespace-nowrap border-b-2 cursor-pointer transition-colors ${
+                statusFilter === id
+                  ? "border-ink text-ink"
+                  : "border-transparent text-ink-3 hover:text-ink"
               }`}
             >
-              {tab.label}
+              {label}
+              <span className="ml-1.5 font-mono text-[11px] text-ink-3">{counts[id]}</span>
             </button>
           ))}
         </div>
+
+        <div className="relative pb-3 md:pb-2">
+          <Search
+            className="w-4 h-4 text-ink-3 absolute left-0 top-[9px]"
+            strokeWidth={1.6}
+          />
+          <input
+            type="search"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Search alias, year or concern"
+            className="w-full md:w-[260px] bg-transparent pl-6 py-1.5 text-[14px] placeholder:text-ink-3 focus:outline-none"
+          />
+        </div>
       </div>
 
-      {/* Cases List */}
+      {/* List */}
       {loading ? (
-        <div className="bg-white rounded-2xl border border-slate-200 p-10 text-center text-sm text-slate-500">
-          Loading confidential case vault...
-        </div>
-      ) : filtered.length === 0 ? (
-        <div className="bg-white rounded-2xl border border-slate-200 p-10 text-center">
-          <p className="text-sm text-slate-600 mb-3">
-            No cases match your current filter.
-          </p>
-          <button
-            type="button"
-            onClick={() => setShowNewModal(true)}
-            className="text-sm font-semibold text-indigo-800 hover:underline cursor-pointer"
-          >
-            Create a new anonymised pupil case
-          </button>
-        </div>
-      ) : (
-        <div className="grid md:grid-cols-2 gap-4">
-          {filtered.map((c) => (
-            <Link
-              key={c.id}
-              href={`/cases/${c.id}`}
-              className="group bg-white rounded-2xl border border-slate-200 hover:border-indigo-300 hover:shadow-md transition-all p-5 flex flex-col justify-between"
-            >
-              <div>
-                <div className="flex items-center justify-between gap-2 mb-3">
-                  <div className="flex items-center gap-2">
-                    <span className="px-2.5 py-1 rounded-lg bg-indigo-50 text-indigo-900 text-xs font-bold">
-                      {c.pupilAlias}
-                    </span>
-                    <span className="text-xs font-medium text-slate-500">
-                      {c.yearGroup}
-                    </span>
-                  </div>
-                  <span
-                    className={`px-2.5 py-0.5 rounded-full text-[11px] font-semibold ${
-                      c.status === "report_ready"
-                        ? "bg-emerald-50 text-emerald-700 border border-emerald-200"
-                        : c.status === "archived"
-                        ? "bg-slate-100 text-slate-600"
-                        : "bg-amber-50 text-amber-800 border border-amber-200"
-                    }`}
-                  >
-                    {c.status === "report_ready"
-                      ? "Portfolio Ready"
-                      : c.status === "archived"
-                      ? "Archived"
-                      : "Ready for Supervision"}
-                  </span>
-                </div>
-
-                <h2 className="text-base font-bold text-slate-900 group-hover:text-indigo-900 transition-colors mb-2">
-                  {c.title}
-                </h2>
-                <p className="text-sm text-slate-600 line-clamp-3 leading-relaxed mb-4">
-                  {c.summary}
-                </p>
+        <div className="divide-y divide-rule">
+          {[0, 1, 2].map((i) => (
+            <div key={i} className="py-6 grid grid-cols-12 gap-6">
+              <div className="col-span-2 skeleton h-3" />
+              <div className="col-span-6 space-y-2">
+                <div className="skeleton h-3 w-3/4" />
+                <div className="skeleton h-3 w-1/2" />
               </div>
-
-              <div className="pt-3 border-t border-slate-100 flex items-center justify-between gap-2">
-                <div className="flex items-center gap-3 text-xs text-slate-500">
-                  {c.attachments.some((a) => a.kind === "image") && (
-                    <span className="inline-flex items-center gap-1 text-indigo-700 font-medium">
-                      <ImageIcon className="w-3.5 h-3.5" /> Drawing
-                    </span>
-                  )}
-                  {c.attachments.some(
-                    (a) => a.kind === "text" || a.kind === "pdf"
-                  ) && (
-                    <span className="inline-flex items-center gap-1">
-                      <FileText className="w-3.5 h-3.5" /> Notes/PDF
-                    </span>
-                  )}
-                  {c.attachments.some((a) => a.kind === "audio") && (
-                    <span className="inline-flex items-center gap-1">
-                      <Mic className="w-3.5 h-3.5" /> Audio
-                    </span>
-                  )}
-                  {c.latestSupervision && (
-                    <span className="inline-flex items-center gap-1 text-emerald-700 font-medium">
-                      <Sparkles className="w-3.5 h-3.5" /> 4-Step Done
-                    </span>
-                  )}
-                </div>
-
-                <span className="inline-flex items-center gap-1 text-xs font-semibold text-indigo-900 group-hover:translate-x-0.5 transition-transform">
-                  Open Workspace
-                  <ArrowRight className="w-3.5 h-3.5" />
-                </span>
-              </div>
-            </Link>
+            </div>
           ))}
         </div>
+      ) : filtered.length === 0 ? (
+        <div className="py-20 text-center">
+          <p className="font-serif text-[22px] mb-2">
+            {cases.length === 0 ? "No cases yet." : "Nothing matches that."}
+          </p>
+          <p className="text-[14px] text-ink-2 mb-6">
+            {cases.length === 0
+              ? "Open a case to start your first supervision."
+              : "Try a different filter or search term."}
+          </p>
+          {cases.length === 0 && (
+            <button type="button" onClick={openNew} className="btn btn-outline">
+              New case
+            </button>
+          )}
+        </div>
+      ) : (
+        <>
+          <div className="hidden md:grid grid-cols-12 gap-6 py-3 eyebrow border-b border-rule">
+            <span className="col-span-2">Pupil</span>
+            <span className="col-span-5">Presenting concern</span>
+            <span className="col-span-2">Materials</span>
+            <span className="col-span-2">Status</span>
+            <span className="col-span-1 text-right">Updated</span>
+          </div>
+          <ul className="divide-y divide-rule border-b border-rule">
+            {filtered.map((c) => (
+              <li key={c.id}>
+                <Link
+                  href={`/cases/${c.id}`}
+                  className="group grid grid-cols-1 md:grid-cols-12 gap-2 md:gap-6 py-5 -mx-3 px-3 rounded-[3px] hover:bg-surface transition-colors"
+                >
+                  <div className="md:col-span-2">
+                    <span className="block font-medium text-[14.5px] text-ink">{c.pupilAlias}</span>
+                    <span className="block text-[13px] text-ink-3">{c.yearGroup}</span>
+                  </div>
+                  <div className="md:col-span-5 min-w-0">
+                    <span className="block text-[15px] text-ink group-hover:underline decoration-rule-strong underline-offset-[3px]">
+                      {c.title}
+                    </span>
+                    <span className="block mt-1 text-[13.5px] text-ink-3 line-clamp-1">{c.summary}</span>
+                  </div>
+                  <div className="md:col-span-2 font-mono text-[12px] text-ink-2 md:pt-0.5">
+                    {materialsOf(c)}
+                  </div>
+                  <div className="md:col-span-2 md:pt-0.5">
+                    <StatusLabel status={c.status} />
+                  </div>
+                  <div className="md:col-span-1 md:text-right text-[13px] text-ink-3 md:pt-0.5">
+                    {formatDate(c.updatedAt)}
+                  </div>
+                </Link>
+              </li>
+            ))}
+          </ul>
+        </>
       )}
 
-      {/* New Case Modal */}
-      {showNewModal && (
-        <div className="fixed inset-0 z-50 bg-slate-900/50 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl border border-slate-200 shadow-xl w-full max-w-xl overflow-hidden">
-            <div className="px-6 py-4 border-b border-slate-200 flex items-center justify-between">
+      {/* New case drawer */}
+      {showNew && (
+        <div className="fixed inset-0 z-50 flex justify-end">
+          <button
+            type="button"
+            aria-label="Close"
+            onClick={() => setShowNew(false)}
+            className="absolute inset-0 bg-ink/30 cursor-default"
+          />
+          <div className="relative w-full max-w-[520px] h-full bg-paper border-l border-rule flex flex-col shadow-2xl">
+            <div className="flex items-start justify-between px-8 pt-8 pb-6 border-b border-rule">
               <div>
-                <h2 className="text-lg font-bold text-slate-900">
-                  New Confidential Pupil Case
-                </h2>
-                <p className="text-xs text-slate-500">
-                  Use a pseudonym — personal identifiers are redacted before AI
-                  supervision.
+                <h2 className="display text-[28px]">New case</h2>
+                <p className="mt-1.5 text-[13.5px] text-ink-2">
+                  Use an alias. Names and contact details are removed before
+                  anything is analysed.
                 </p>
               </div>
-              <button
-                type="button"
-                onClick={() => setShowNewModal(false)}
-                className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 cursor-pointer"
-              >
-                <X className="w-5 h-5" />
+              <button type="button" onClick={() => setShowNew(false)} className="btn btn-ghost h-8 px-1.5 -mr-2" aria-label="Close">
+                <X className="w-5 h-5" strokeWidth={1.5} />
               </button>
             </div>
 
-            <form onSubmit={handleCreateCase} className="p-6 space-y-4">
-              <div className="grid grid-cols-2 gap-3">
+            <form onSubmit={handleCreate} className="flex-1 overflow-y-auto px-8 py-7 space-y-6">
+              <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-xs font-semibold text-slate-700 mb-1">
-                    Pupil Alias (Pseudonym)
-                  </label>
-                  <input
-                    type="text"
-                    required
-                    value={pupilAlias}
-                    onChange={(e) => setPupilAlias(e.target.value)}
-                    placeholder="e.g. Pupil C"
-                    className="w-full px-3 py-2 rounded-lg border border-slate-300 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                  />
+                  <label className="block text-[13px] font-medium mb-1.5">Alias</label>
+                  <input className="field" required value={pupilAlias} onChange={(e) => setPupilAlias(e.target.value)} />
                 </div>
                 <div>
-                  <label className="block text-xs font-semibold text-slate-700 mb-1">
-                    Year Group / Age
-                  </label>
-                  <input
-                    type="text"
-                    required
-                    value={yearGroup}
-                    onChange={(e) => setYearGroup(e.target.value)}
-                    placeholder="e.g. Year 6 (Age 10)"
-                    className="w-full px-3 py-2 rounded-lg border border-slate-300 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                  />
+                  <label className="block text-[13px] font-medium mb-1.5">Year group</label>
+                  <input className="field" required value={yearGroup} onChange={(e) => setYearGroup(e.target.value)} placeholder="Year 6" />
                 </div>
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1">
-                  Case Title / Presenting Theme
-                </label>
+                <label className="block text-[13px] font-medium mb-1.5">Presenting concern</label>
                 <input
-                  type="text"
+                  className="field"
                   required
                   value={caseTitle}
                   onChange={(e) => setCaseTitle(e.target.value)}
-                  placeholder="e.g. Transition anxiety and peer withdrawal after move to Year 6"
-                  className="w-full px-3 py-2 rounded-lg border border-slate-300 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  placeholder="e.g. Withdrawal after transition to Year 6"
                 />
               </div>
 
               <div>
-                <div className="flex items-center justify-between mb-1">
-                  <label className="block text-xs font-semibold text-slate-700">
-                    Case Description & Psychologist Reflections
-                  </label>
-                  <button
-                    type="button"
-                    onClick={handleAnonymiseDraft}
-                    className="inline-flex items-center gap-1 text-xs font-semibold text-emerald-700 hover:underline cursor-pointer"
-                  >
-                    <ShieldCheck className="w-3.5 h-3.5" />
-                    Auto-Redact PII
-                  </button>
-                </div>
+                <label className="block text-[13px] font-medium mb-1.5">Your notes</label>
                 <textarea
-                  rows={5}
+                  rows={9}
                   required
+                  className="field leading-relaxed"
                   value={caseSummary}
                   onChange={(e) => setCaseSummary(e.target.value)}
-                  placeholder="Describe the pupil's context, observations, and what feels challenging for you as the psychologist..."
-                  className="w-full px-3 py-2 rounded-lg border border-slate-300 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  placeholder="What's been happening, what you've tried, and what feels difficult about this case for you."
                 />
-                <div className="mt-2 flex items-center gap-2">
+              </div>
+
+              <div className="border border-rule rounded-[3px] bg-surface p-4">
+                <p className="text-[13px] font-medium mb-1">Remove identifying details</p>
+                <p className="text-[12.5px] text-ink-3 mb-3">
+                  If you typed the pupil&apos;s real name, enter it here and it will
+                  be replaced with the alias. Emails, phone numbers, postcodes and
+                  dates are removed automatically.
+                </p>
+                <div className="flex gap-2">
                   <input
-                    type="text"
-                    value={pupilRealNameToStrip}
-                    onChange={(e) => setPupilRealNameToStrip(e.target.value)}
-                    placeholder="Optional: real name to automatically replace with alias"
-                    className="flex-1 px-3 py-1.5 rounded-lg border border-slate-200 bg-slate-50 text-xs focus:outline-none focus:ring-1 focus:ring-emerald-500"
+                    className="field"
+                    value={realName}
+                    onChange={(e) => setRealName(e.target.value)}
+                    placeholder="Real name (not stored)"
                   />
+                  <button type="button" onClick={handleRedact} className="btn btn-outline shrink-0">
+                    Check now
+                  </button>
                 </div>
-                {piiNotice && (
-                  <p className="mt-1.5 text-xs text-emerald-700 font-medium">
-                    {piiNotice}
-                  </p>
-                )}
+                {piiNotice && <p className="mt-2 text-[12.5px] text-moss">{piiNotice}</p>}
               </div>
 
               <div className="flex items-center justify-end gap-2 pt-2">
-                <button
-                  type="button"
-                  onClick={() => setShowNewModal(false)}
-                  className="px-4 py-2 rounded-lg text-sm font-medium text-slate-600 hover:bg-slate-100 cursor-pointer"
-                >
+                <button type="button" onClick={() => setShowNew(false)} className="btn btn-ghost">
                   Cancel
                 </button>
-                <button
-                  type="submit"
-                  disabled={creating}
-                  style={{ backgroundColor: activeOrg.accentColor }}
-                  className="px-5 py-2 rounded-lg text-white text-sm font-semibold hover:opacity-95 disabled:opacity-50 cursor-pointer"
-                >
-                  {creating ? "Creating..." : "Create & Open Case"}
+                <button type="submit" disabled={creating} className="btn btn-primary">
+                  {creating ? "Opening…" : "Open case"}
+                  {!creating && <ArrowRight className="w-4 h-4" strokeWidth={1.8} />}
                 </button>
               </div>
             </form>

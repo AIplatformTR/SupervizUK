@@ -74,7 +74,7 @@ export const DEMO_ORGANISATIONS: OrganisationSettings[] = [
     name: "Oakwood Multi-Academy Trust",
     shortCode: "OMAT",
     type: "Multi-Academy Trust (MAT)",
-    accentColor: "#1E3A8A",
+    accentColor: "#1F4D3A",
     logoText: "Oakwood MAT",
     reportFooter:
       "Confidential — Oakwood Multi-Academy Trust Educational Psychology Service. Processed under UK GDPR & Data Protection Act 2018.",
@@ -88,7 +88,7 @@ export const DEMO_ORGANISATIONS: OrganisationSettings[] = [
     name: "Camden Educational Psychology Service",
     shortCode: "CEPS",
     type: "Local Authority (LA)",
-    accentColor: "#0F766E",
+    accentColor: "#6E2A26",
     logoText: "Camden EPS",
     reportFooter:
       "Confidential — Camden Local Authority Educational Psychology Service. Retain in accordance with LA safeguarding and retention policy.",
